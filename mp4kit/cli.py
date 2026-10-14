@@ -24,7 +24,9 @@ def cmd_nals(args):
         contents = f.read()
     units = nal.iter_length_prefixed(contents, args.start, args.end)
     for index, (offset, unit) in enumerate(units, 1):
-        print(index, offset, len(unit))
+        unit_type = nal.nal_header(unit[0])[2]
+        name = nal.NAL_TYPES.get(unit_type, "?")
+        print(index, offset, len(unit), unit_type, name)
     return 0
 
 

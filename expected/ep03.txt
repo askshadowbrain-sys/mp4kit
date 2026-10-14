@@ -1,0 +1,12 @@
+1 40 5301 5 IDR slice
+2 5345 358 1 non-IDR slice
+3 5707 428 1 non-IDR slice
+4 6139 455 1 non-IDR slice
+5 6598 6206 5 IDR slice
+6 12808 495 1 non-IDR slice
+7 13307 506 1 non-IDR slice
+8 13817 535 1 non-IDR slice
+9 14356 6352 5 IDR slice
+10 20712 433 1 non-IDR slice
+11 21149 485 1 non-IDR slice
+12 21638 415 1 non-IDR slice

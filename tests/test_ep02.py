@@ -25,7 +25,7 @@ class Ep02(unittest.TestCase):
     def test_cmd_nals_first_line(self):
         out = run_cli("nals", "testfiles/out/f1.mp4", "--from", "40", "--to", "22057")
         lines = out.splitlines()
-        self.assertEqual(lines[0], "1 40 5301")
+        self.assertTrue(lines[0].startswith("1 40 5301"))
         self.assertEqual(len(lines), 12)
 
 
