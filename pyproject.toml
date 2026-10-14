@@ -1,0 +1,8 @@
+[project]
+name = "mp4kit"
+version = "0.0.6"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+mp4kit = "mp4kit.cli:main"

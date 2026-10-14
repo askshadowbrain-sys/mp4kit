@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# For every tag epNN (in tag order): check the tag out into a temporary worktree,
+# run that episode's command on the committed file, diff against expected/epNN.txt,
+# then run the unit tests at that tag. Non-zero exit on any failure.
+set -u
+cd "$(dirname "$0")"
+REPO=$(pwd)
+
+# Command per tag (mp4kit-plan.md section 3). Paths are relative to the worktree root.
+cmd_for() {
+  case "$1" in
+    ep01) echo 'python3 -m mp4kit hex testfiles/out/f1.mp4 --at 0 --len 8' ;;
+    ep02|ep03) echo 'python3 -m mp4kit nals testfiles/out/f1.mp4 --from 40 --to 22057' ;;
+    ep04) echo 'python3 -m mp4kit sps testfiles/out/f1.mp4' ;;
+    ep05) echo 'python3 -m mp4kit annexb testfiles/out/f1.mp4 --from 40 --to 22057 -o "$TMPOUT/f1.h264"' ;;
+    ep06) echo 'python3 -m mp4kit boxes testfiles/out/f1.mp4' ;;
+    *) return 1 ;;
+  esac
+}
+
+tags=$(git tag -l 'ep[0-9][0-9]' | sort)
+if [ -z "$tags" ]; then
+  echo "no epNN tags yet"
+  exit 0
+fi
+
+echo "ffmpeg build: $(ffmpeg -version 2>/dev/null | head -1 || echo missing)"
+fail=0
+for tag in $tags; do
+  cmd=$(cmd_for "$tag") || { echo "$tag FAIL: no command in check.sh table"; fail=1; continue; }
+  wt=$(mktemp -d)
+  TMPOUT=$(mktemp -d)
+  export TMPOUT
+  git worktree add --detach -q "$wt" "$tag"
+  ok=1
+  out=$(cd "$wt" && eval "$cmd" 2>&1) || { echo "$tag command failed:"; echo "$out"; ok=0; }
+  if [ ! -f "$wt/expected/$tag.txt" ]; then
+    echo "$tag FAIL: expected/$tag.txt missing"; ok=0
+  elif [ $ok = 1 ]; then
+    d=$(diff <(printf '%s\n' "$out") "$wt/expected/$tag.txt") || { echo "$tag output differs:"; echo "$d"; ok=0; }
+  fi
+  ut=$(cd "$wt" && python3 -m unittest 2>&1) || { echo "$tag unit tests failed:"; echo "$ut"; ok=0; }
+  git worktree remove --force "$wt"
+  rm -rf "$TMPOUT"
+  if [ $ok = 1 ]; then echo "$tag ok"; else fail=1; fi
+done
+exit $fail

@@ -1,0 +1,6 @@
+[mov,mp4,m4a,3gp,3g2,mj2] type:'ftyp' parent:'root' sz: 32 8 108744
+[mov,mp4,m4a,3gp,3g2,mj2] type:'free' parent:'root' sz: 8 40 108744
+[mov,mp4,m4a,3gp,3g2,mj2] type:'mdat' parent:'root' sz: 108704 48 108744
+[mov,mp4,m4a,3gp,3g2,mj2] type:'ftyp' parent:'root' sz: 32 8 108744
+[mov,mp4,m4a,3gp,3g2,mj2] type:'free' parent:'root' sz: 8 40 108744
+[mov,mp4,m4a,3gp,3g2,mj2] type:'mdat' parent:'root' sz: 108704 48 108744

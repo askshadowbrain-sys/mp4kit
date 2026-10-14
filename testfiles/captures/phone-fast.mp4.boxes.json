@@ -1,0 +1,704 @@
+{
+ "size": 112156,
+ "boxes": [
+  {
+   "path": "/ftyp",
+   "type": "ftyp",
+   "start": 0,
+   "size": 32
+  },
+  {
+   "path": "/moov",
+   "type": "moov",
+   "start": 32,
+   "size": 3412
+  },
+  {
+   "path": "/moov/mvhd",
+   "type": "mvhd",
+   "start": 40,
+   "size": 108
+  },
+  {
+   "path": "/moov/trak",
+   "type": "trak",
+   "start": 148,
+   "size": 1454
+  },
+  {
+   "path": "/moov/trak/tkhd",
+   "type": "tkhd",
+   "start": 156,
+   "size": 92
+  },
+  {
+   "path": "/moov/trak/edts",
+   "type": "edts",
+   "start": 248,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/edts/elst",
+   "type": "elst",
+   "start": 256,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia",
+   "type": "mdia",
+   "start": 284,
+   "size": 1318
+  },
+  {
+   "path": "/moov/trak/mdia/mdhd",
+   "type": "mdhd",
+   "start": 292,
+   "size": 32
+  },
+  {
+   "path": "/moov/trak/mdia/hdlr",
+   "type": "hdlr",
+   "start": 324,
+   "size": 45
+  },
+  {
+   "path": "/moov/trak/mdia/minf",
+   "type": "minf",
+   "start": 369,
+   "size": 1233
+  },
+  {
+   "path": "/moov/trak/mdia/minf/vmhd",
+   "type": "vmhd",
+   "start": 377,
+   "size": 20
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf",
+   "type": "dinf",
+   "start": 397,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref",
+   "type": "dref",
+   "start": 405,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref/url ",
+   "type": "url ",
+   "start": 421,
+   "size": 12
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl",
+   "type": "stbl",
+   "start": 433,
+   "size": 1169
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd",
+   "type": "stsd",
+   "start": 441,
+   "size": 193
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/avc1",
+   "type": "avc1",
+   "start": 457,
+   "size": 177
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/avc1/avcC",
+   "type": "avcC",
+   "start": 543,
+   "size": 55
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/avc1/pasp",
+   "type": "pasp",
+   "start": 598,
+   "size": 16
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/avc1/btrt",
+   "type": "btrt",
+   "start": 614,
+   "size": 20
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stts",
+   "type": "stts",
+   "start": 634,
+   "size": 24
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stss",
+   "type": "stss",
+   "start": 658,
+   "size": 24
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/ctts",
+   "type": "ctts",
+   "start": 682,
+   "size": 368
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsc",
+   "type": "stsc",
+   "start": 1050,
+   "size": 40
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsz",
+   "type": "stsz",
+   "start": 1090,
+   "size": 260
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stco",
+   "type": "stco",
+   "start": 1350,
+   "size": 252
+  },
+  {
+   "path": "/moov/trak",
+   "type": "trak",
+   "start": 1602,
+   "size": 1781
+  },
+  {
+   "path": "/moov/trak/tkhd",
+   "type": "tkhd",
+   "start": 1610,
+   "size": 92
+  },
+  {
+   "path": "/moov/trak/edts",
+   "type": "edts",
+   "start": 1702,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/edts/elst",
+   "type": "elst",
+   "start": 1710,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia",
+   "type": "mdia",
+   "start": 1738,
+   "size": 1645
+  },
+  {
+   "path": "/moov/trak/mdia/mdhd",
+   "type": "mdhd",
+   "start": 1746,
+   "size": 32
+  },
+  {
+   "path": "/moov/trak/mdia/hdlr",
+   "type": "hdlr",
+   "start": 1778,
+   "size": 45
+  },
+  {
+   "path": "/moov/trak/mdia/minf",
+   "type": "minf",
+   "start": 1823,
+   "size": 1560
+  },
+  {
+   "path": "/moov/trak/mdia/minf/smhd",
+   "type": "smhd",
+   "start": 1831,
+   "size": 16
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf",
+   "type": "dinf",
+   "start": 1847,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref",
+   "type": "dref",
+   "start": 1855,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref/url ",
+   "type": "url ",
+   "start": 1871,
+   "size": 12
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl",
+   "type": "stbl",
+   "start": 1883,
+   "size": 1500
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd",
+   "type": "stsd",
+   "start": 1891,
+   "size": 126
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/mp4a",
+   "type": "mp4a",
+   "start": 1907,
+   "size": 110
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stts",
+   "type": "stts",
+   "start": 2017,
+   "size": 32
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsc",
+   "type": "stsc",
+   "start": 2049,
+   "size": 628
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsz",
+   "type": "stsz",
+   "start": 2677,
+   "size": 400
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stco",
+   "type": "stco",
+   "start": 3077,
+   "size": 252
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/sgpd",
+   "type": "sgpd",
+   "start": 3329,
+   "size": 26
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/sbgp",
+   "type": "sbgp",
+   "start": 3355,
+   "size": 28
+  },
+  {
+   "path": "/moov/udta",
+   "type": "udta",
+   "start": 3383,
+   "size": 61
+  },
+  {
+   "path": "/free",
+   "type": "free",
+   "start": 3444,
+   "size": 8
+  },
+  {
+   "path": "/mdat",
+   "type": "mdat",
+   "start": 3452,
+   "size": 108704
+  }
+ ],
+ "timescale": 15360,
+ "stts": [
+  [
+   60,
+   512
+  ]
+ ],
+ "ctts": [
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   1,
+   512
+  ]
+ ],
+ "stss": [
+  1,
+  31
+ ],
+ "stsc": [
+  [
+   1,
+   2,
+   1
+  ],
+  [
+   2,
+   1,
+   1
+  ]
+ ],
+ "stco": [
+  3460,
+  11661,
+  13208,
+  14620,
+  16697,
+  18264,
+  19409,
+  21557,
+  22691,
+  24900,
+  26315,
+  27502,
+  29771,
+  31066,
+  32441,
+  34281,
+  35849,
+  37067,
+  39222,
+  40795,
+  41929,
+  44215,
+  45497,
+  46959,
+  48954,
+  50559,
+  51963,
+  53885,
+  55397,
+  56618,
+  63644,
+  66081,
+  67537,
+  68598,
+  70737,
+  72258,
+  73431,
+  75278,
+  76426,
+  78516,
+  79636,
+  81650,
+  83047,
+  84892,
+  86421,
+  87717,
+  90081,
+  91468,
+  93015,
+  95013,
+  96696,
+  98289,
+  100262,
+  101968,
+  103202,
+  105342,
+  106728,
+  108216,
+  109983
+ ],
+ "stsz": [
+  5824,
+  2139,
+  1040,
+  947,
+  1792,
+  1056,
+  880,
+  1633,
+  885,
+  1711,
+  877,
+  911,
+  1745,
+  1049,
+  913,
+  1571,
+  1039,
+  951,
+  1656,
+  1070,
+  855,
+  1769,
+  1040,
+  918,
+  1737,
+  1102,
+  872,
+  1683,
+  980,
+  992,
+  6517,
+  2184,
+  933,
+  812,
+  1640,
+  956,
+  935,
+  1358,
+  883,
+  1584,
+  850,
+  1501,
+  873,
+  1593,
+  1024,
+  1016,
+  1873,
+  1133,
+  1022,
+  1740,
+  1166,
+  1107,
+  1702,
+  1196,
+  980,
+  1640,
+  1123,
+  983,
+  1238,
+  1150
+ ],
+ "elst": [
+  [
+   96000,
+   1024,
+   1,
+   0
+  ]
+ ],
+ "chunks": [
+  2,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1
+ ]
+}

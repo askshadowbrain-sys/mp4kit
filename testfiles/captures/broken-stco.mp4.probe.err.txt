@@ -1,0 +1,9 @@
+[h264] Invalid NAL unit size (632640939 > 5820).
+[h264] missing picture in access unit with size 5824
+[h264] Invalid NAL unit size (632640939 > 5820).
+[h264] Error splitting the input into NAL units.
+[h264] Invalid NAL unit size (-1271155956 > 2135).
+[h264] missing picture in access unit with size 2139
+[h264] Invalid NAL unit size (-1271155956 > 2135).
+[h264] Error splitting the input into NAL units.
+[h264] co located POCs unavailable

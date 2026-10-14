@@ -1,0 +1,257 @@
+{
+ "size": 21663,
+ "boxes": [
+  {
+   "path": "/ftyp",
+   "type": "ftyp",
+   "start": 0,
+   "size": 32
+  },
+  {
+   "path": "/mdat",
+   "type": "mdat",
+   "start": 32,
+   "size": 20786
+  },
+  {
+   "path": "/moov",
+   "type": "moov",
+   "start": 20818,
+   "size": 845
+  },
+  {
+   "path": "/moov/mvhd",
+   "type": "mvhd",
+   "start": 20826,
+   "size": 108
+  },
+  {
+   "path": "/moov/trak",
+   "type": "trak",
+   "start": 20934,
+   "size": 729
+  },
+  {
+   "path": "/moov/trak/tkhd",
+   "type": "tkhd",
+   "start": 20942,
+   "size": 92
+  },
+  {
+   "path": "/moov/trak/edts",
+   "type": "edts",
+   "start": 21034,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/edts/elst",
+   "type": "elst",
+   "start": 21042,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia",
+   "type": "mdia",
+   "start": 21070,
+   "size": 593
+  },
+  {
+   "path": "/moov/trak/mdia/mdhd",
+   "type": "mdhd",
+   "start": 21078,
+   "size": 32
+  },
+  {
+   "path": "/moov/trak/mdia/hdlr",
+   "type": "hdlr",
+   "start": 21110,
+   "size": 45
+  },
+  {
+   "path": "/moov/trak/mdia/minf",
+   "type": "minf",
+   "start": 21155,
+   "size": 508
+  },
+  {
+   "path": "/moov/trak/mdia/minf/vmhd",
+   "type": "vmhd",
+   "start": 21163,
+   "size": 20
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf",
+   "type": "dinf",
+   "start": 21183,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref",
+   "type": "dref",
+   "start": 21191,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref/url ",
+   "type": "url ",
+   "start": 21207,
+   "size": 12
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl",
+   "type": "stbl",
+   "start": 21219,
+   "size": 444
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd",
+   "type": "stsd",
+   "start": 21227,
+   "size": 156
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/avc1",
+   "type": "avc1",
+   "start": 21243,
+   "size": 140
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/avc1/avcC",
+   "type": "avcC",
+   "start": 21329,
+   "size": 54
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stts",
+   "type": "stts",
+   "start": 21383,
+   "size": 24
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/ctts",
+   "type": "ctts",
+   "start": 21407,
+   "size": 88
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stss",
+   "type": "stss",
+   "start": 21495,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsc",
+   "type": "stsc",
+   "start": 21523,
+   "size": 40
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsz",
+   "type": "stsz",
+   "start": 21563,
+   "size": 68
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stco",
+   "type": "stco",
+   "start": 21631,
+   "size": 32
+  }
+ ],
+ "timescale": 1000,
+ "stts": [
+  [
+   12,
+   33
+  ]
+ ],
+ "ctts": [
+  [
+   1,
+   33
+  ],
+  [
+   1,
+   99
+  ],
+  [
+   2,
+   0
+  ],
+  [
+   1,
+   33
+  ],
+  [
+   1,
+   99
+  ],
+  [
+   2,
+   0
+  ],
+  [
+   1,
+   33
+  ],
+  [
+   1,
+   99
+  ],
+  [
+   2,
+   0
+  ]
+ ],
+ "stss": [
+  1,
+  5,
+  9
+ ],
+ "stsc": [
+  [
+   1,
+   4,
+   1
+  ],
+  [
+   3,
+   2,
+   1
+  ]
+ ],
+ "stco": [
+  40,
+  6185,
+  13477,
+  20456
+ ],
+ "stsz": [
+  5589,
+  311,
+  100,
+  145,
+  6562,
+  379,
+  171,
+  180,
+  6545,
+  434,
+  180,
+  182
+ ],
+ "elst": [
+  [
+   396,
+   33,
+   1,
+   0
+  ]
+ ],
+ "chunks": [
+  4,
+  4,
+  2,
+  2
+ ]
+}

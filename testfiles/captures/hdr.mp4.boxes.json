@@ -1,0 +1,493 @@
+{
+ "size": 31837,
+ "boxes": [
+  {
+   "path": "/ftyp",
+   "type": "ftyp",
+   "start": 0,
+   "size": 28
+  },
+  {
+   "path": "/free",
+   "type": "free",
+   "start": 28,
+   "size": 8
+  },
+  {
+   "path": "/mdat",
+   "type": "mdat",
+   "start": 36,
+   "size": 27615
+  },
+  {
+   "path": "/moov",
+   "type": "moov",
+   "start": 27651,
+   "size": 4186
+  },
+  {
+   "path": "/moov/mvhd",
+   "type": "mvhd",
+   "start": 27659,
+   "size": 108
+  },
+  {
+   "path": "/moov/trak",
+   "type": "trak",
+   "start": 27767,
+   "size": 4009
+  },
+  {
+   "path": "/moov/trak/tkhd",
+   "type": "tkhd",
+   "start": 27775,
+   "size": 92
+  },
+  {
+   "path": "/moov/trak/edts",
+   "type": "edts",
+   "start": 27867,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/edts/elst",
+   "type": "elst",
+   "start": 27875,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia",
+   "type": "mdia",
+   "start": 27903,
+   "size": 3873
+  },
+  {
+   "path": "/moov/trak/mdia/mdhd",
+   "type": "mdhd",
+   "start": 27911,
+   "size": 32
+  },
+  {
+   "path": "/moov/trak/mdia/hdlr",
+   "type": "hdlr",
+   "start": 27943,
+   "size": 45
+  },
+  {
+   "path": "/moov/trak/mdia/minf",
+   "type": "minf",
+   "start": 27988,
+   "size": 3788
+  },
+  {
+   "path": "/moov/trak/mdia/minf/vmhd",
+   "type": "vmhd",
+   "start": 27996,
+   "size": 20
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf",
+   "type": "dinf",
+   "start": 28016,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref",
+   "type": "dref",
+   "start": 28024,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref/url ",
+   "type": "url ",
+   "start": 28040,
+   "size": 12
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl",
+   "type": "stbl",
+   "start": 28052,
+   "size": 3724
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd",
+   "type": "stsd",
+   "start": 28060,
+   "size": 2824
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/hvc1",
+   "type": "hvc1",
+   "start": 28076,
+   "size": 2808
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stts",
+   "type": "stts",
+   "start": 30884,
+   "size": 24
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stss",
+   "type": "stss",
+   "start": 30908,
+   "size": 24
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/sdtp",
+   "type": "sdtp",
+   "start": 30932,
+   "size": 72
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/ctts",
+   "type": "ctts",
+   "start": 31004,
+   "size": 464
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsc",
+   "type": "stsc",
+   "start": 31468,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsz",
+   "type": "stsz",
+   "start": 31496,
+   "size": 260
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stco",
+   "type": "stco",
+   "start": 31756,
+   "size": 20
+  },
+  {
+   "path": "/moov/udta",
+   "type": "udta",
+   "start": 31776,
+   "size": 61
+  }
+ ],
+ "timescale": 15360,
+ "stts": [
+  [
+   60,
+   512
+  ]
+ ],
+ "ctts": [
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   0
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   0
+  ],
+  [
+   1,
+   2560
+  ],
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   0
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   0
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   0
+  ],
+  [
+   1,
+   3072
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   2,
+   0
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   0
+  ],
+  [
+   1,
+   2560
+  ],
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   0
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   0
+  ],
+  [
+   1,
+   3072
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   2,
+   0
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   0
+  ],
+  [
+   1,
+   3072
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   2,
+   0
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   0
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   0
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   3072
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   2,
+   0
+  ],
+  [
+   1,
+   512
+  ]
+ ],
+ "stss": [
+  1,
+  28
+ ],
+ "stsc": [
+  [
+   1,
+   60,
+   1
+  ]
+ ],
+ "stco": [
+  44
+ ],
+ "stsz": [
+  4853,
+  543,
+  126,
+  155,
+  611,
+  105,
+  758,
+  243,
+  105,
+  804,
+  220,
+  89,
+  138,
+  726,
+  264,
+  101,
+  518,
+  191,
+  102,
+  812,
+  265,
+  176,
+  185,
+  224,
+  404,
+  195,
+  145,
+  5515,
+  266,
+  141,
+  117,
+  635,
+  108,
+  123,
+  793,
+  71,
+  129,
+  76,
+  178,
+  681,
+  231,
+  89,
+  688,
+  164,
+  181,
+  126,
+  190,
+  717,
+  242,
+  96,
+  574,
+  167,
+  168,
+  518,
+  126,
+  583,
+  356,
+  134,
+  202,
+  164
+ ],
+ "elst": [
+  [
+   2000,
+   1024,
+   1,
+   0
+  ]
+ ],
+ "chunks": [
+  60
+ ]
+}

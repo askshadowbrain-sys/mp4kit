@@ -1,0 +1,58 @@
+[h264] SEI type 49 size 35 truncated at 10
+[h264] non-existing PPS 4 referenced
+[h264] SEI type 49 size 35 truncated at 9
+[h264] A non-intra slice in an IDR NAL unit.
+[h264] no frame!
+[h264] reference count 3 overflow
+[h264] reference count overflow
+[h264] no frame!
+[aac] Reserved bit set.
+[aac] Number of bands (19) exceeds limit (12).
+[h264] illegal memory management control operation 32
+[h264] deblocking_filter_idc 6 out of range
+[h264] no frame!
+[h264] non-existing PPS 1 referenced
+    Last message repeated 1 times
+[h264] no frame!
+[h264] top block unavailable for requested intra mode -1
+[h264] error while decoding MB 0 0, bytestream 1780
+[h264] illegal reordering_of_pic_nums_idc 12
+[h264] non-existing PPS 3 referenced
+    Last message repeated 1 times
+[h264] non-existing PPS 2 referenced
+[h264] chroma_log2_weight_denom 9 is out of range
+[h264] reference count 1 overflow
+[h264] illegal reordering_of_pic_nums_idc 17
+[h264] non-existing PPS 6 referenced
+[h264] illegal reordering_of_pic_nums_idc 4
+[h264] non-existing PPS 3 referenced
+[h264] illegal reordering_of_pic_nums_idc 5
+[h264] illegal reordering_of_pic_nums_idc 20
+[h264] non-existing PPS 1 referenced
+[h264] non-existing PPS 23 referenced
+[h264] non-existing PPS 20 referenced
+[h264] non-existing PPS 10 referenced
+[h264] non-existing PPS 5 referenced
+[h264] illegal reordering_of_pic_nums_idc 6
+[h264] illegal reordering_of_pic_nums_idc 7
+[h264] non-existing PPS 14 referenced
+[h264] illegal reordering_of_pic_nums_idc 5
+[h264] non-existing PPS 1 referenced
+    Last message repeated 1 times
+[h264] non-existing PPS 7 referenced
+[h264] non-existing PPS 11 referenced
+[h264] reference count 1 overflow
+[h264] non-existing PPS 2 referenced
+    Last message repeated 1 times
+[h264] reference count 1 overflow
+[h264] non-existing PPS 2 referenced
+    Last message repeated 1 times
+[h264] illegal memory management control operation 7
+[h264] non-existing PPS 2 referenced
+[h264] illegal reordering_of_pic_nums_idc 4
+[h264] non-existing PPS 2 referenced
+[h264] non-existing PPS 1 referenced
+[h264] non-existing PPS 6 referenced
+[h264] non-existing PPS 1 referenced
+[h264] non-existing PPS 2 referenced
+[h264] reference count 1 overflow
