@@ -6,7 +6,8 @@ from typing import Optional
 def hexdump(data, start, length):
     """Hex bytes from `start`, 16 per line, lowercase pairs, no offset column."""
     chunk = data[start:start + length]
-    return "\n".join(" ".join(f"{b:02x}" for b in chunk[i:i + 16]) for i in range(0, len(chunk), 16))
+    rows = [chunk[i:i + 16] for i in range(0, len(chunk), 16)]
+    return "\n".join(" ".join(f"{b:02x}" for b in row) for row in rows)
 
 
 def cmd_hex(args):
@@ -22,8 +23,8 @@ def main(argv: Optional[list] = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     h = sub.add_parser("hex", help="print bytes as hex")
     h.add_argument("file")
-    h.add_argument("--at", type=int, default=0)
-    h.add_argument("--len", type=int, default=64)
+    h.add_argument("--at", type=int, default=0, help="byte offset to start at (default 0)")
+    h.add_argument("--len", type=int, default=64, help="how many bytes to show (default 64)")
     h.set_defaults(func=cmd_hex)
     args = p.parse_args(argv)
     return args.func(args)
