@@ -28,12 +28,12 @@ class Ep06(unittest.TestCase):
 
     def test_box_running_past_end_raises(self):
         blob = PHONE[:50]  # the mdat header at 40 claims far more than the 10 bytes left
-        with self.assertRaisesRegex(boxes.BoxError, "mdat at 40: size 108704 runs past the end"):
+        with self.assertRaisesRegex(ValueError, "mdat at 40: size 108704 runs past the end"):
             list(boxes.iter_boxes(blob, 0, len(blob)))
 
     def test_size_smaller_than_header_raises(self):
         blob = b"\x00\x00\x00\x07free"
-        with self.assertRaisesRegex(boxes.BoxError, "free at 0: size 7 is smaller than its 8-byte header"):
+        with self.assertRaisesRegex(ValueError, "free at 0: size 7 is smaller than its 8-byte header"):
             boxes.read_header(blob, 0)
 
     def test_cut_at_boundary_lists_cleanly(self):

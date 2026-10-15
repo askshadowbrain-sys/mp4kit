@@ -211,7 +211,7 @@ def _avcc_params_stopgap(data):
 
 
 def _mdat_range_stopgap(data):
-    """(start, end) of the mdat payload, by searching for b"mdat" (a stopgap: ep06's iter_boxes replaces it)."""
+    """(start, end) of the mdat payload, by searching for b"mdat" (a stopgap until cmd_annexb is next extended)."""
     found_at = data.find(b"mdat")
     if found_at < 4:
         raise ValueError("no mdat in this file")

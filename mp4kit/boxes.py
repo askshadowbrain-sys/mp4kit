@@ -18,10 +18,6 @@ def u64(data, at):
     return struct.unpack_from(">Q", data, at)[0]
 
 
-class BoxError(ValueError):
-    """A box header that does not fit: names the box type and its offset."""
-
-
 @dataclass
 class Box:
     """One box: its type, where it starts, its size and its header size."""
@@ -47,9 +43,9 @@ def read_header(data, at):
     size = u32(data, at)
     box_type = data[at + 4:at + 8].decode("latin-1")
     if size < 8:
-        raise BoxError(f"{box_type} at {at}: size {size} is smaller than its 8-byte header")
+        raise ValueError(f"{box_type} at {at}: size {size} is smaller than its 8-byte header")
     if at + size > len(data):
-        raise BoxError(f"{box_type} at {at}: size {size} runs past the end ({len(data)})")
+        raise ValueError(f"{box_type} at {at}: size {size} runs past the end ({len(data)})")
     return Box(box_type, at, size, 8, [])
 
 

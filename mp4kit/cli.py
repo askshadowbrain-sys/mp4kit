@@ -50,7 +50,7 @@ def cmd_annexb(args):
     with open(args.file, "rb") as f:
         contents = f.read()
     sps, pps = nal._avcc_params_stopgap(contents)
-    start, end = nal._mdat_range_stopgap(contents)  # ep06's iter_boxes replaces this
+    start, end = nal._mdat_range_stopgap(contents)  # a stopgap until cmd_annexb is next extended
     slices = [unit for _, unit in nal.iter_length_prefixed(contents, start, end)]
     stream = nal.to_annexb([sps, pps] + slices)
     with open(args.out, "wb") as f:
@@ -67,7 +67,7 @@ def cmd_boxes(args):
     try:
         for box in boxes.iter_boxes(contents, 0, len(contents)):
             print(box.type, box.start, box.size)
-    except boxes.BoxError as e:
+    except ValueError as e:
         print(f"error: {e}")
         return 1
     return 0
