@@ -59,6 +59,20 @@ def cmd_annexb(args):
     return 0
 
 
+def cmd_boxes(args):
+    """`boxes FILE`: print the type, start and size of each top-level box."""
+    from . import boxes
+    with open(args.file, "rb") as f:
+        contents = f.read()
+    try:
+        for box in boxes.iter_boxes(contents, 0, len(contents)):
+            print(box.type, box.start, box.size)
+    except boxes.BoxError as e:
+        print(f"error: {e}")
+        return 1
+    return 0
+
+
 def _add_hex(sub):
     """Register the `hex` command."""
     h = sub.add_parser("hex", help="print bytes as hex")
@@ -92,11 +106,18 @@ def _add_annexb(sub):
     a.set_defaults(func=cmd_annexb)
 
 
+def _add_boxes(sub):
+    """Register the `boxes` command."""
+    b = sub.add_parser("boxes", help="list the top-level boxes")
+    b.add_argument("file", help="the MP4 file to read")
+    b.set_defaults(func=cmd_boxes)
+
+
 def main(argv: Optional[list] = None) -> int:
     """Parse the command line and run the chosen subcommand."""
     p = argparse.ArgumentParser(prog="mp4kit")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for add in (_add_hex, _add_nals, _add_sps, _add_annexb):
+    for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes):
         add(sub)
     args = p.parse_args(argv)
     return args.func(args)
