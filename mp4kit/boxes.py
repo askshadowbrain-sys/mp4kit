@@ -40,6 +40,8 @@ class Box:
 
 def read_header(data, at):
     """Read the 8-byte box header at offset `at`: 4 bytes of size, 4 letters of type."""
+    if at + 8 > len(data):
+        raise ValueError(f"box at {at}: only {len(data) - at} bytes left, a header needs 8")
     size = u32(data, at)
     box_type = data[at + 4:at + 8].decode("latin-1")
     if size < 8:

@@ -1,11 +1,9 @@
-import contextlib
-import io
 import os
 import tempfile
 import unittest
 
-from mp4kit import boxes, cli
-from tests.util import data, run_cli
+from mp4kit import boxes
+from tests.util import data, run_cli, run_cli_code
 
 F1 = data("f1.mp4")
 PHONE = data("phone.mp4")
@@ -45,14 +43,30 @@ class Ep06(unittest.TestCase):
         self.assertEqual(printed.splitlines(), ["ftyp 0 32", "mdat 32 22025", "moov 22057 721"])
 
     def test_cmd_boxes_error(self):
-        path = os.path.join(tempfile.mkdtemp(), "cut.mp4")
-        with open(path, "wb") as f:
-            f.write(PHONE[:50])
-        printed = io.StringIO()
-        with contextlib.redirect_stdout(printed):
-            code = cli.main(["boxes", path])
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "cut.mp4")
+            with open(path, "wb") as f:
+                f.write(PHONE[:50])
+            code, printed = run_cli_code("boxes", path)
         self.assertEqual(code, 1)
-        self.assertEqual(printed.getvalue(), "ftyp 0 32\nfree 32 8\nerror: mdat at 40: size 108704 runs past the end (50)\n")
+        self.assertEqual(printed, "ftyp 0 32\nfree 32 8\nerror: mdat at 40: size 108704 runs past the end (50)\n")
+
+    def test_too_few_bytes_for_a_header(self):
+        blob = b"\x00\x00\x00\x08free\x00\x00"  # an 8-byte free box, then 2 stray bytes
+        listed = []
+        with self.assertRaisesRegex(ValueError, "box at 8: only 2 bytes left, a header needs 8"):
+            for box in boxes.iter_boxes(blob, 0, len(blob)):
+                listed.append((box.type, box.start, box.size))
+        self.assertEqual(listed, [("free", 0, 8)])
+
+    def test_cmd_boxes_trailing_bytes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "junk.mp4")
+            with open(path, "wb") as f:
+                f.write(b"\x00\x00\x00\x08free\x00\x00")
+            code, printed = run_cli_code("boxes", path)
+        self.assertEqual(code, 1)
+        self.assertEqual(printed, "free 0 8\nerror: box at 8: only 2 bytes left, a header needs 8\n")
 
 
 if __name__ == "__main__":

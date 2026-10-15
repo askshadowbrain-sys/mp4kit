@@ -15,7 +15,12 @@ def data(name) -> bytes:
 
 def run_cli(*argv) -> str:
     """Run mp4kit.cli.main(argv) and return what it printed to stdout."""
+    return run_cli_code(*argv)[1]
+
+
+def run_cli_code(*argv) -> tuple:
+    """Run mp4kit.cli.main(argv) and return (exit code, what it printed to stdout)."""
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        cli.main(list(argv))
-    return buf.getvalue()
+        code = cli.main(list(argv))
+    return code, buf.getvalue()
