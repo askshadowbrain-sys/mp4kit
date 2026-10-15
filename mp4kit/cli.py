@@ -44,6 +44,21 @@ def cmd_sps(args):
     return 0
 
 
+def cmd_annexb(args):
+    """`annexb FILE -o OUT`: write SPS, PPS and the slices as an Annex B .h264 file."""
+    from . import nal
+    with open(args.file, "rb") as f:
+        contents = f.read()
+    sps, pps = nal._avcc_params_stopgap(contents)
+    start, end = nal._mdat_range_stopgap(contents)  # ep06's iter_boxes replaces this
+    slices = [unit for _, unit in nal.iter_length_prefixed(contents, start, end)]
+    stream = nal.to_annexb([sps, pps] + slices)
+    with open(args.out, "wb") as f:
+        f.write(stream)
+    print(f"wrote {len(slices) + 2} NAL units (SPS, PPS, {len(slices)} slices), {len(stream)} bytes")
+    return 0
+
+
 def _add_hex(sub):
     """Register the `hex` command."""
     h = sub.add_parser("hex", help="print bytes as hex")
@@ -69,11 +84,19 @@ def _add_sps(sub):
     s.set_defaults(func=cmd_sps)
 
 
+def _add_annexb(sub):
+    """Register the `annexb` command."""
+    a = sub.add_parser("annexb", help="write the video as an Annex B .h264 file")
+    a.add_argument("file", help="the MP4 file to read")
+    a.add_argument("-o", dest="out", required=True, help="the .h264 file to write")
+    a.set_defaults(func=cmd_annexb)
+
+
 def main(argv: Optional[list] = None) -> int:
     """Parse the command line and run the chosen subcommand."""
     p = argparse.ArgumentParser(prog="mp4kit")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for add in (_add_hex, _add_nals, _add_sps):
+    for add in (_add_hex, _add_nals, _add_sps, _add_annexb):
         add(sub)
     args = p.parse_args(argv)
     return args.func(args)

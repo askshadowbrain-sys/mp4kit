@@ -1,5 +1,6 @@
 """H.264 elementary stream. Episode 2: length labels in mdat. Episode 3: NAL header, types, bit reader.
-Episode 4: SPS, PPS, picture size, slice headers."""
+Episode 4: SPS, PPS, picture size, slice headers.
+Episode 5: Annex B start codes, AVCC length labels, emulation prevention (rbsp)."""
 
 
 def iter_length_prefixed(data, start, end, length_size=4):
@@ -25,8 +26,40 @@ def nal_header(first_byte):
     return forbidden_zero_bit, nal_ref_idc, nal_unit_type
 
 
+def split_annexb(stream):
+    """Cut an Annex B stream at its start codes into NAL units.
+    Extra zeros before a start code are dropped (a NAL never ends in 00), and so is
+    anything before the first start code."""
+    parts = stream.split(b"\x00\x00\x01")[1:]
+    return [unit for unit in (part.rstrip(b"\x00") for part in parts) if unit]
+
+
+def to_annexb(nals):
+    """Join NAL units into an Annex B stream, each behind a 4-byte start code."""
+    return b"".join(b"\x00\x00\x00\x01" + n for n in nals)
+
+
+def to_avcc(nals, length_size=4):
+    """Join NAL units the MP4 way: each behind its length, `length_size` bytes big-endian."""
+    return b"".join(len(n).to_bytes(length_size, "big") + n for n in nals)
+
+
+def rbsp(nal):
+    """Undo emulation prevention: drop each 03 byte that follows two zero bytes."""
+    out = bytearray()
+    zeros = 0
+    for byte in nal:
+        if zeros >= 2 and byte == 3:
+            zeros = 0
+            continue
+        out.append(byte)
+        zeros = zeros + 1 if byte == 0 else 0
+    return bytes(out)
+
+
 class BitReader:
-    """Reads a byte string one bit at a time, most significant bit first."""
+    """Reads a byte string one bit at a time, most significant bit first.
+    From episode 5 the parsers hand it rbsp(nal), so 00 00 03 escapes are already gone."""
 
     def __init__(self, data):
         self.data = bytes(data)
@@ -104,7 +137,7 @@ def _sps_frame(r, s):
 
 def parse_sps(nal):
     """Read an SPS NAL (H.264 7.3.2.1.1) up to its cropping window."""
-    r = BitReader(nal[1:])
+    r = BitReader(rbsp(nal)[1:])
     s = {"profile_idc": r.u(8), "constraint_flags": r.u(8), "level_idc": r.u(8)}
     s["sps_id"] = r.ue()
     _sps_chroma(r, s)
@@ -132,7 +165,7 @@ def picture_size(sps):
 
 def parse_pps(nal):
     """Read the first three fields of a PPS NAL (H.264 7.3.2.2)."""
-    r = BitReader(nal[1:])
+    r = BitReader(rbsp(nal)[1:])
     pps_id = r.ue()
     sps_id = r.ue()
     entropy_coding_mode_flag = r.u(1)
@@ -146,7 +179,7 @@ def read_slice_header(nal, sps, pps):
     if sps["separate_colour_plane"]:
         raise ValueError("separate colour planes not taught")
     nal_unit_type = nal_header(nal[0])[2]
-    r = BitReader(nal[1:])
+    r = BitReader(rbsp(nal)[1:])
     h = {"first_mb": r.ue(), "slice_type": r.ue(), "pps_id": r.ue()}
     h["frame_num"] = r.u(sps["log2_max_frame_num"])
     if nal_unit_type == 5:
@@ -175,3 +208,15 @@ def _avcc_params_stopgap(data):
     pps_count = data[at]
     pps_list, at = _read_param_sets(data, at + 1, pps_count)
     return sps_list[0], pps_list[0]
+
+
+def _mdat_range_stopgap(data):
+    """(start, end) of the mdat payload, by searching for b"mdat" (a stopgap: ep06's iter_boxes replaces it)."""
+    found_at = data.find(b"mdat")
+    if found_at < 4:
+        raise ValueError("no mdat in this file")
+    box_start = found_at - 4
+    size = int.from_bytes(data[box_start:found_at], "big")
+    if size < 8:
+        raise ValueError(f"mdat size {size} is smaller than its 8-byte header")
+    return found_at + 4, box_start + size

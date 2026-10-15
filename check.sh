@@ -12,7 +12,7 @@ cmd_for() {
     ep01) echo 'python3 -m mp4kit hex testfiles/out/f1.mp4 --at 0 --len 8' ;;
     ep02|ep03) echo 'python3 -m mp4kit nals testfiles/out/f1.mp4 --from 40 --to 22057' ;;
     ep04) echo 'python3 -m mp4kit sps testfiles/out/f1.mp4' ;;
-    ep05) echo 'python3 -m mp4kit annexb testfiles/out/f1.mp4 --from 40 --to 22057 -o "$TMPOUT/f1.h264"' ;;
+    ep05) echo 'python3 -m mp4kit annexb testfiles/out/f1.mp4 -o "$TMPOUT/f1.h264"' ;;
     ep06) echo 'python3 -m mp4kit boxes testfiles/out/f1.mp4' ;;
     *) return 1 ;;
   esac
