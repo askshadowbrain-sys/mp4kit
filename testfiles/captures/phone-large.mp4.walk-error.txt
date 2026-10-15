@@ -1,0 +1,1 @@
+ValueError: bad box size 1 for 'mdat' at 32
