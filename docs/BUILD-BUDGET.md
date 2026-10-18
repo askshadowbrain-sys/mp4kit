@@ -20,6 +20,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep06 | boxes.py +44/-1, cli.py +23/-2, nal.py +1/-1 | 47 | ~24 | `cli.cmd_boxes` 10 (12) and `boxes.read_header` 9 (11) are the longest new ones; `nal.parse_sps` 12 (14) overall |
 | ep07 | boxes.py +29/-13, cli.py +3/-3 | 23 | ~13 | `boxes.read_header` 15 (17), at the limit; `cli.cmd_boxes` 10 (12) |
 | ep08 | boxes.py +16/-0, cli.py +6/-2 | 13 | ~9 | `cli.cmd_boxes` 14 (16); `boxes.read_header` 15 (17) overall |
+| ep09 (finale) | boxes.py +21/-0, cli.py +32/-1 | 36 | ~34 (finale ≤ ~90) | `cli.cmd_dump` 11 (13); `boxes.read_header` 15 (17) overall |
 
 ## Functions over 15 lines
 
@@ -71,4 +72,13 @@ arithmetic became `picture_size`, so its body is 12 lines.
   - **Blocks the Build-it scene shows:** `read_ftyp` (major at the payload, minor as a `u32` at +4, then a
     brand every 4 bytes from +8 to the box's end); `DECODERS = {"ftyp": read_ftyp}`; `decode` (look up, or
     `{}`); the `if box.type == "ftyp"` branch in `cmd_boxes`.
+- **ep09 (36, plan ~34; a finale).** Within budget. `CONTAINERS` and `CHILD_OFFSET` (4 lines between them),
+  `walk` (4), `read_mp4` (2), `cmd_dump` (11, with the `try`/`except BoxError` and the `no moov box` line),
+  `_print_tree` (5) and `_add_dump` plus its entry in `main`'s tuple.
+  - **Blocks the Build-it scene shows:** the two tables (which boxes hold boxes, and how many bytes of their
+    own fields a box has before its children: stsd 8, dref 8, meta 4, visual sample entries 78, audio 28);
+    `walk` (list the boxes from `start` to `end`, then walk into each container from
+    `payload + CHILD_OFFSET` to its own end, so a child is checked against its parent); `read_mp4`;
+    `cmd_dump` and `_print_tree` (two spaces per depth, then `type start size` and any decoded `key=value`).
+  - **On-screen trim:** show `_add_dump` and the new entry in `main`'s tuple as finished code.
 - ep01–ep03 are 6–10 lines over their estimates.

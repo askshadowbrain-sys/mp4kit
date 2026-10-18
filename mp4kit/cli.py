@@ -77,6 +77,30 @@ def cmd_boxes(args):
     return 0
 
 
+def cmd_dump(args):
+    """`dump FILE`: print the box tree, one box per line, indented by depth, with any decoded fields."""
+    from . import boxes
+    data = boxes.read_mp4(args.file)
+    try:
+        tree = boxes.walk(data)
+    except boxes.BoxError as e:
+        print(f"error: {e}")
+        return 1
+    _print_tree(data, tree, 0)
+    if not any(b.type == "moov" for b in tree):
+        print("no moov box")
+    return 0
+
+
+def _print_tree(data, tree, depth):
+    """Print each box of `tree` at `depth` (two spaces a level), then its children one level deeper."""
+    from . import boxes
+    for b in tree:
+        fields = "".join(f" {k}={v}" for k, v in boxes.decode(data, b).items())
+        print(f"{'  ' * depth}{b.type} {b.start} {b.size}{fields}")
+        _print_tree(data, b.children, depth + 1)
+
+
 def _add_hex(sub):
     """Register the `hex` command."""
     h = sub.add_parser("hex", help="print bytes as hex")
@@ -117,11 +141,18 @@ def _add_boxes(sub):
     b.set_defaults(func=cmd_boxes)
 
 
+def _add_dump(sub):
+    """Register the `dump` command."""
+    d = sub.add_parser("dump", help="print the box tree")
+    d.add_argument("file", help="the MP4 file to read")
+    d.set_defaults(func=cmd_dump)
+
+
 def main(argv: Optional[list] = None) -> int:
     """Parse the command line and run the chosen subcommand."""
     p = argparse.ArgumentParser(prog="mp4kit")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes):
+    for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes, _add_dump):
         add(sub)
     args = p.parse_args(argv)
     return args.func(args)

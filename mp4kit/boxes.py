@@ -90,3 +90,24 @@ def decode(data, box):
     """The fields of a box whose reader is registered; an unknown type gives {}."""
     reader = DECODERS.get(box.type)
     return reader(data, box) if reader else {}
+
+
+CONTAINERS = {"moov", "trak", "mdia", "minf", "stbl", "dinf", "edts", "udta", "mvex", "moof", "traf", "mfra",
+              "sinf", "schi"}
+CHILD_OFFSET = {"stsd": 8, "dref": 8, "meta": 4, "avc1": 78, "hvc1": 78, "hev1": 78, "av01": 78, "encv": 78,
+                "mp4a": 28, "enca": 28}
+
+
+def walk(data, start=0, end=None):
+    """The floor plan: every box from `start` to `end`, containers opened door by door."""
+    tree = list(iter_boxes(data, start, len(data) if end is None else end))
+    for box in tree:
+        if box.type in CONTAINERS or box.type in CHILD_OFFSET:
+            box.children = walk(data, box.payload + CHILD_OFFSET.get(box.type, 0), box.end)
+    return tree
+
+
+def read_mp4(path):
+    """The file's bytes (episode 19 switches this to mmap)."""
+    with open(path, "rb") as f:
+        return f.read()

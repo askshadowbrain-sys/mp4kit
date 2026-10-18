@@ -16,6 +16,7 @@ cmd_for() {
     ep06) echo 'python3 -m mp4kit boxes testfiles/out/f1.mp4' ;;
     ep07) echo 'python3 -m mp4kit boxes testfiles/out/phone-large.mp4' ;;
     ep08) echo 'python3 -m mp4kit boxes testfiles/out/aac-only.m4a' ;;
+    ep09) echo 'python3 -m mp4kit dump testfiles/out/phone.mp4' ;;
     *) return 1 ;;
   esac
 }
