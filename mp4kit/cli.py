@@ -60,14 +60,14 @@ def cmd_annexb(args):
 
 
 def cmd_boxes(args):
-    """`boxes FILE`: print the type, start and size of each top-level box."""
+    """`boxes FILE`: print the type, start and size of each top-level box, and any header that is not 8 bytes."""
     from . import boxes
     with open(args.file, "rb") as f:
         contents = f.read()
     try:
         for box in boxes.iter_boxes(contents, 0, len(contents)):
-            print(box.type, box.start, box.size)
-    except ValueError as e:
+            print(f"{box.type} {box.start} {box.size}" + ("" if box.header == 8 else f" (header {box.header})"))
+    except boxes.BoxError as e:
         print(f"error: {e}")
         return 1
     return 0

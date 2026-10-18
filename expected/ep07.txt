@@ -1,0 +1,4 @@
+ftyp 0 32
+mdat 32 108712 (header 16)
+moov 108744 3884
+uuid 112628 28 (header 24)

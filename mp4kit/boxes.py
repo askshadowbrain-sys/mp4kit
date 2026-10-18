@@ -38,23 +38,39 @@ class Box:
         return self.start + self.size
 
 
-def read_header(data, at):
-    """Read the 8-byte box header at offset `at`: 4 bytes of size, 4 letters of type."""
-    if at + 8 > len(data):
-        raise ValueError(f"box at {at}: only {len(data) - at} bytes left, a header needs 8")
-    size = u32(data, at)
-    box_type = data[at + 4:at + 8].decode("latin-1")
-    if size < 8:
-        raise ValueError(f"{box_type} at {at}: size {size} is smaller than its 8-byte header")
-    if at + size > len(data):
-        raise ValueError(f"{box_type} at {at}: size {size} runs past the end ({len(data)})")
-    return Box(box_type, at, size, 8, [])
+class BoxError(ValueError):
+    """A box header that cannot be right: too short, or running past its parent."""
+
+
+def read_header(data, at, end=None):
+    """Read a box header at `at`: size, type, then a 64-bit size (size 1) or a uuid's 16 bytes."""
+    end = len(data) if end is None else end
+    if at + 8 > end:
+        raise BoxError(f"box at {at}: only {end - at} bytes left, a header needs 8")
+    size, box_type, header = u32(data, at), data[at + 4:at + 8].decode("latin-1"), 8
+    if size == 1 and at + 16 <= end:
+        size, header = u64(data, at + 8), 16
+    elif size == 0:
+        size = end - at
+    if box_type == "uuid":
+        header += 16
+    if size < header:
+        raise BoxError(f"{box_type} at {at}: size {size} is smaller than its {header}-byte header")
+    if at + size > end:
+        raise BoxError(f"{box_type} at {at}: size {size} runs past the end ({end})")
+    return Box(box_type, at, size, header, [])
 
 
 def iter_boxes(data, start, end):
-    """Yield the boxes from `start` to `end`, one after another."""
+    """Yield the boxes from `start` to `end` (the parent's end), one after another."""
     at = start
     while at < end:
-        box = read_header(data, at)
+        box = read_header(data, at, end)
         yield box
         at = box.end
+
+
+def read_fullbox(data, box):
+    """A full box's stamp: version (1 byte) and flags (3 bytes) at the start of its payload."""
+    word = u32(data, box.payload)
+    return word >> 24, word & 0xFFFFFF

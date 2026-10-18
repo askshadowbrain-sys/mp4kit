@@ -18,6 +18,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep04 | cli.py +35/-4, nal.py +122/-1 | 114 | ~40 | `nal.parse_sps` 12 (14), `nal._sps_chroma` 12 (14) |
 | ep05 | cli.py +24/-1, nal.py +50/-5 | 52 | ~22 | `nal.parse_sps` 12 (14) |
 | ep06 | boxes.py +44/-1, cli.py +23/-2, nal.py +1/-1 | 47 | ~24 | `cli.cmd_boxes` 10 (12) and `boxes.read_header` 9 (11) are the longest new ones; `nal.parse_sps` 12 (14) overall |
+| ep07 | boxes.py +29/-13, cli.py +3/-3 | 23 | ~13 | `boxes.read_header` 15 (17), at the limit; `cli.cmd_boxes` 10 (12) |
 
 ## Functions over 15 lines
 
@@ -42,4 +43,21 @@ arithmetic became `picture_size`, so its body is 12 lines.
   - **On-screen trim:** show `_add_boxes` and the new entry in `main`'s tuple as finished code; build
     `cmd_boxes` as its 4-line loop (open, read, `for box in iter_boxes(...)`, print), and reveal the
     `try`/`except ValueError` when the cut-file demo (phone.mp4's first 50 bytes) hits the error.
+- **ep07 (23, plan ~13).** `read_header` is rewritten rather than extended (most of its lines replace
+  ep06's body): the `end` parameter (the parent's end, the carried M4 fix), three new branches (size 1, size 0,
+  `uuid`) and the three checks now raise `BoxError`. Its body is 15 lines, so the size, the type and the
+  header length are read in one packed assignment, the one exception to ep06's one-statement-per-line rule.
+  A size-1 box with no room for its 64-bit size keeps size 1 and fails the header check with a `BoxError`
+  (`mdat at 0: size 1 is smaller than its 8-byte header`) instead of a `struct.error`.
+  - **Blocks the Build-it scene shows** (each one narrated):
+    1. `class BoxError(ValueError)` and its docstring: a `ValueError`, so ep06's `except` and tests still hold.
+    2. `read_header(data, at, end=None)`: `end` defaults to `len(data)`; the 8-byte guard against `end`; the
+       packed read of size (u32), type (4 bytes decoded as `latin-1`, not ASCII: any byte value decodes) and
+       header 8; `size == 1` (with 16 bytes to hand) → `u64` at +8, header 16; `size == 0` → runs to `end`;
+       `uuid` → header + 16; the two size checks, now against `end` and the real header length.
+    3. `iter_boxes`: the one changed line, `read_header(data, at, end)`.
+    4. `read_fullbox`: one `u32` split into version (`>> 24`) and flags (`& 0xFFFFFF`).
+    5. `cmd_boxes`: the print with ` (header N)` when the header is not 8, and `except boxes.BoxError`.
+  - **On-screen trim:** show `read_header` as ep06's version edited in place (a diff view), so the six
+    unchanged ideas are not retyped; type only the `end` line, the three branches and the new messages.
 - ep01–ep03 are 6–10 lines over their estimates.
