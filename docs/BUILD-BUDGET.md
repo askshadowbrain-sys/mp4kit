@@ -19,6 +19,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep05 | cli.py +24/-1, nal.py +50/-5 | 52 | ~22 | `nal.parse_sps` 12 (14) |
 | ep06 | boxes.py +44/-1, cli.py +23/-2, nal.py +1/-1 | 47 | ~24 | `cli.cmd_boxes` 10 (12) and `boxes.read_header` 9 (11) are the longest new ones; `nal.parse_sps` 12 (14) overall |
 | ep07 | boxes.py +29/-13, cli.py +3/-3 | 23 | ~13 | `boxes.read_header` 15 (17), at the limit; `cli.cmd_boxes` 10 (12) |
+| ep08 | boxes.py +16/-0, cli.py +6/-2 | 13 | ~9 | `cli.cmd_boxes` 14 (16); `boxes.read_header` 15 (17) overall |
 
 ## Functions over 15 lines
 
@@ -60,4 +61,14 @@ arithmetic became `picture_size`, so its body is 12 lines.
     5. `cmd_boxes`: the print with ` (header N)` when the header is not 8, and `except boxes.BoxError`.
   - **On-screen trim:** show `read_header` as ep06's version edited in place (a diff view), so the six
     unchanged ideas are not retyped; type only the `end` line, the three branches and the new messages.
+- **ep08 (13, plan ~9).** `read_ftyp` (3), `DECODERS` (1), `decode` (2) and the ftyp branch in `cmd_boxes`
+  (an `if`/`else` around the ep07 print, 4 of the 13). The brands are decoded as `latin-1`, like the box type.
+  - **Earlier tests changed at this tag** (all three for the same reason: `boxes` now prints the decoded ftyp
+    line first, `ftyp: isom 512 [isom, iso2, avc1, mp41]`, in place of `ftyp 0 32`):
+    `test_ep06.test_cmd_boxes`, `test_ep06.test_cmd_boxes_error` and `test_ep07.test_cmd_boxes_large`. Each
+    carries the comment that its own tag keeps its original test; tags ep06 and ep07 still run their own
+    tests and `expected/` files under check.sh.
+  - **Blocks the Build-it scene shows:** `read_ftyp` (major at the payload, minor as a `u32` at +4, then a
+    brand every 4 bytes from +8 to the box's end); `DECODERS = {"ftyp": read_ftyp}`; `decode` (look up, or
+    `{}`); the `if box.type == "ftyp"` branch in `cmd_boxes`.
 - ep01–ep03 are 6–10 lines over their estimates.

@@ -74,3 +74,19 @@ def read_fullbox(data, box):
     """A full box's stamp: version (1 byte) and flags (3 bytes) at the start of its payload."""
     word = u32(data, box.payload)
     return word >> 24, word & 0xFFFFFF
+
+
+def read_ftyp(data, box):
+    """The front-door nameplate: major brand, minor version, and the compatible brands, 4 letters each."""
+    at = box.payload
+    brands = [data[i:i + 4].decode("latin-1") for i in range(at + 8, box.end, 4)]
+    return {"major": data[at:at + 4].decode("latin-1"), "minor": u32(data, at + 4), "brands": brands}
+
+
+DECODERS = {"ftyp": read_ftyp}
+
+
+def decode(data, box):
+    """The fields of a box whose reader is registered; an unknown type gives {}."""
+    reader = DECODERS.get(box.type)
+    return reader(data, box) if reader else {}

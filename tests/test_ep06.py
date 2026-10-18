@@ -40,7 +40,9 @@ class Ep06(unittest.TestCase):
 
     def test_cmd_boxes(self):
         printed = run_cli("boxes", "testfiles/out/f1.mp4")
-        self.assertEqual(printed.splitlines(), ["ftyp 0 32", "mdat 32 22025", "moov 22057 721"])
+        # ep08 decodes ftyp; tag ep06 keeps its own test
+        self.assertEqual(printed.splitlines(),
+                         ["ftyp: isom 512 [isom, iso2, avc1, mp41]", "mdat 32 22025", "moov 22057 721"])
 
     def test_cmd_boxes_error(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -49,7 +51,9 @@ class Ep06(unittest.TestCase):
                 f.write(PHONE[:50])
             code, printed = run_cli_code("boxes", path)
         self.assertEqual(code, 1)
-        self.assertEqual(printed, "ftyp 0 32\nfree 32 8\nerror: mdat at 40: size 108704 runs past the end (50)\n")
+        # ep08 decodes ftyp; tag ep06 keeps its own test
+        self.assertEqual(printed, "ftyp: isom 512 [isom, iso2, avc1, mp41]\nfree 32 8\n"
+                                  "error: mdat at 40: size 108704 runs past the end (50)\n")
 
     def test_too_few_bytes_for_a_header(self):
         blob = b"\x00\x00\x00\x08free\x00\x00"  # an 8-byte free box, then 2 stray bytes

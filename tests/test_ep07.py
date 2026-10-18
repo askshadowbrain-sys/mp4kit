@@ -40,5 +40,7 @@ class Ep07(unittest.TestCase):
         self.assertEqual(boxes.read_fullbox(F1, boxes.read_header(F1, 22181)), (0, 3))   # tkhd: enabled + in movie
 
     def test_cmd_boxes_large(self):
+        # ep08 decodes ftyp; tag ep07 keeps its own test
         self.assertEqual(run_cli("boxes", "testfiles/out/phone-large.mp4").splitlines(),
-                         ["ftyp 0 32", "mdat 32 108712 (header 16)", "moov 108744 3884", "uuid 112628 28 (header 24)"])
+                         ["ftyp: isom 512 [isom, iso2, avc1, mp41]", "mdat 32 108712 (header 16)", "moov 108744 3884",
+                          "uuid 112628 28 (header 24)"])
