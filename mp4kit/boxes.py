@@ -121,6 +121,20 @@ def find(tree, path):
     return None
 
 
+def find_all(tree, path):
+    """Every box down `path` ("moov/trak"): like find, but it keeps all the matches, not only the first."""
+    first, _, rest = path.partition("/")
+    found = []
+    for box in tree:
+        if box.type != first:
+            continue
+        if rest:
+            found.extend(find_all(box.children, rest))
+        else:
+            found.append(box)
+    return found
+
+
 def read_mp4(path):
     """The file's bytes (episode 19 switches this to mmap)."""
     with open(path, "rb") as f:

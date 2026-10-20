@@ -18,6 +18,7 @@ cmd_for() {
     ep08) echo 'python3 -m mp4kit boxes testfiles/out/aac-only.m4a' ;;
     ep09) echo 'python3 -m mp4kit dump testfiles/out/phone.mp4' ;;
     ep10) echo 'python3 -m mp4kit dump testfiles/out/phone.mp4 --find mvhd' ;;
+    ep11) echo 'python3 -m mp4kit dump testfiles/out/rotated.mp4 --find tkhd' ;;
     *) return 1 ;;
   esac
 }

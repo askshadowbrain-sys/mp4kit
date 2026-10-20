@@ -1,0 +1,2 @@
+moov/trak/tkhd 108868 92 version=0 flags=3 track_ID=1 duration=96000 volume=0.0 width=640.0 height=360.0 matrix=[0, -65536, 0, 65536, 0, 0, 0, 0, 1073741824] rotation=90
+moov/trak/tkhd 110322 92 version=0 flags=3 track_ID=2 duration=96000 volume=1.0 width=0.0 height=0.0 matrix=[65536, 0, 0, 0, 65536, 0, 0, 0, 1073741824] rotation=0

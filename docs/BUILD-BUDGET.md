@@ -22,6 +22,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep08 | boxes.py +16/-0, cli.py +6/-2 | 13 | ~9 | `cli.cmd_boxes` 14 (16); `boxes.read_header` 15 (17) overall |
 | ep09 (finale) | boxes.py +21/-0, cli.py +32/-1 | 36 | ~34 (finale ≤ ~90) | `cli.cmd_dump` 11 (13); `boxes.read_header` 15 (17) overall |
 | ep10 | boxes.py +14/-0, cli.py +22/-2, tables.py +25 (new), timing.py +6 (new) | 49 | ~17 | `tables.read_mvhd` 15 (17) and `cli.cmd_dump` 15 (18), both at the limit; `boxes.read_header` 15 (17) overall |
+| ep11 | boxes.py +14/-0, cli.py +1/-1, tables.py +40/-1 | 35 | ~21 | `tables.read_tkhd` 14 (17), `boxes.find_all` 9 (11); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 
 ## Functions over 15 lines
 
@@ -104,4 +105,27 @@ arithmetic became `picture_size`, so its body is 12 lines.
   - **On-screen trim:** show the version-1 lines of `read_mvhd`, its two checks, `_print_found` and the
     `--find` argument as finished code; type `find`, `seconds`, the version-0 path of `read_mvhd` and the
     registration line (about 20 lines).
+- **ep11 (35, plan ~21).** The plan's ~21 counted `find_all` (~4), `fixed` (1), a version-0 `read_tkhd` that
+  reads flags, duration, width and height, and a `rotation` for the two matrices the episode shows. The extra
+  lines are:
+  - `read_tkhd` reads version 1 (64-bit creation, modification and duration) as well as version 0 and checks the
+    box is long enough (92 / 104 bytes) as a `BoxError` with the offset, as `read_mvhd` does (design rule 4):
+    4 lines. It also returns track_ID, volume (8.8, a second use of `fixed`; episode 28's `write_tkhd` takes a
+    volume), the nine matrix numbers and `rotation`, so dump prints the matrix next to the angle. It does not
+    read layer or alternate_group (alternate_group is H07, episode 23, Many tracks), nor the creation and
+    modification times (0 in every committed file).
+  - `rotation` looks the matrix's a, b, c, d up in `TURNS`, the four plain turns (0, 90, 180, 270; 2 lines), so
+    a matrix that is not a plain turn gives `None` rather than a wrong angle. No `math` (design rule 6).
+  - `find_all` keeps `find`'s one-statement-per-line loop: 9 body lines, not ~4.
+  - `cmd_dump` is unchanged; one comment in `cli.py` now names `read_tkhd` too (the 1/-1).
+  - **No earlier test changed:** test_ep09's first-lines test stops at mvhd, so the decoded tkhd line does not
+    touch it.
+  - **Blocks the Build-it scene shows:** `find_all` (find's loop, but every match is kept: `append` at the end
+    of the path, `extend` with the matches below); `fixed` (value / 2^frac_bits); `TURNS` and `rotation`; the
+    version-0 path of `read_tkhd` (track_ID 12 bytes into the payload, duration 8 after it, then 8 reserved,
+    layer, alternate_group, volume at +12, matrix at +16 as nine signed 32-bit numbers, width +52, height +56);
+    `DECODERS["tkhd"] = read_tkhd`.
+  - **On-screen trim:** show the version-1 lines and the size check of `read_tkhd` as finished code (ep10's
+    pattern), and `TURNS`'s 180 and 270 entries as finished; type `find_all`, `fixed`, `rotation`, the
+    version-0 path and the registration line (about 22 lines).
 - ep01–ep03 are 6–10 lines over their estimates.
