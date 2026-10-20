@@ -67,5 +67,8 @@ class Ep09(unittest.TestCase):
 
     def test_dump_phone_first_lines(self):
         lines = run_cli("dump", "testfiles/out/phone.mp4").splitlines()
+        # ep10 decodes mvhd; tag ep09 keeps its own test
         self.assertEqual(lines[:5], ["ftyp 0 32 major=isom minor=512 brands=['isom', 'iso2', 'avc1', 'mp41']",
-                                     "free 32 8", "mdat 40 108704", "moov 108744 3412", "  mvhd 108752 108"])
+                                     "free 32 8", "mdat 40 108704", "moov 108744 3412",
+                                     "  mvhd 108752 108 version=0 timescale=48000 duration=96000 seconds=2.0 rate=1.0"
+                                     " volume=1.0 next_track_ID=3"])

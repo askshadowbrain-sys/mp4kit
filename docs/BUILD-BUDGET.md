@@ -21,6 +21,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep07 | boxes.py +29/-13, cli.py +3/-3 | 23 | ~13 | `boxes.read_header` 15 (17), at the limit; `cli.cmd_boxes` 10 (12) |
 | ep08 | boxes.py +16/-0, cli.py +6/-2 | 13 | ~9 | `cli.cmd_boxes` 14 (16); `boxes.read_header` 15 (17) overall |
 | ep09 (finale) | boxes.py +21/-0, cli.py +32/-1 | 36 | ~34 (finale ≤ ~90) | `cli.cmd_dump` 11 (13); `boxes.read_header` 15 (17) overall |
+| ep10 | boxes.py +14/-0, cli.py +22/-2, tables.py +25 (new), timing.py +6 (new) | 49 | ~17 | `tables.read_mvhd` 15 (17) and `cli.cmd_dump` 15 (18), both at the limit; `boxes.read_header` 15 (17) overall |
 
 ## Functions over 15 lines
 
@@ -81,4 +82,26 @@ arithmetic became `picture_size`, so its body is 12 lines.
     `payload + CHILD_OFFSET` to its own end, so a child is checked against its parent); `read_mp4`;
     `cmd_dump` and `_print_tree` (two spaces per depth, then `type start size` and any decoded `key=value`).
   - **On-screen trim:** show `_add_dump` and the new entry in `main`'s tuple as finished code.
+- **ep10 (49, plan ~17).** Season 2's opener; the plan's ~17 counted `find`, a timescale/duration-only
+  `read_mvhd` and `seconds`. The extra lines are:
+  - `read_mvhd` reads version 1 (64-bit creation, modification and duration) as well as version 0, checks the
+    box is long enough (108 / 120 bytes) and that timescale is not 0, both as `BoxError` with the offset
+    (design rule 4), and returns rate, volume and next_track_ID too (episode 28's `write_mvhd` test reads
+    rate 1.0 and volume 1.0 back through it, so they belong to this episode, not a later extension). It
+    also returns `seconds` from `timing.seconds`, so dump prints the length in seconds next to the ticks.
+  - `find` walks on to the next sibling when the first box of a type does not lead down the path
+    (`moov/trak/mdia/minf/smhd` is only in the second trak): 10 body lines, not ~4.
+  - `dump --find TYPE` prints each match by its path from the top (`moov/mvhd 108752 108 …`), the very path
+    `find` takes, plus `no TYPE box` when there is none: the new `_print_found` (10 body lines), a branch in
+    `cmd_dump` (its `try` now also covers printing, so a broken mvhd prints `error: …` and exits 1), and the
+    `--find` argument.
+  - **Earlier test changed at this tag:** `test_ep09.test_dump_phone_first_lines` (dump's mvhd line now carries
+    the decoded fields). It carries the comment that tag ep09 keeps its own test.
+  - **Blocks the Build-it scene shows:** `find` (split the path at the first `/`, match the type, go down the
+    rest); `seconds` (ticks / timescale); `read_mvhd` (version, size check, the two time widths, timescale at
+    payload + 12 in version 0, duration after it, the timescale-0 check, rate 16.16, volume 8.8, next_track_ID
+    76 bytes after rate); `DECODERS["mvhd"] = read_mvhd`; the `--find` branch of `cmd_dump`.
+  - **On-screen trim:** show the version-1 lines of `read_mvhd`, its two checks, `_print_found` and the
+    `--find` argument as finished code; type `find`, `seconds`, the version-0 path of `read_mvhd` and the
+    registration line (about 20 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

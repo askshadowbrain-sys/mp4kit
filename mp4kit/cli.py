@@ -78,15 +78,20 @@ def cmd_boxes(args):
 
 
 def cmd_dump(args):
-    """`dump FILE`: print the box tree, one box per line, indented by depth, with any decoded fields."""
+    """`dump FILE [--find TYPE]`: print the box tree, indented by depth, or only the boxes of one type by their
+    path; each with any decoded fields."""
     from . import boxes
+    from . import tables  # noqa: F401  (importing it registers read_mvhd in boxes.DECODERS)
     data = boxes.read_mp4(args.file)
     try:
         tree = boxes.walk(data)
+        if args.find is None:
+            _print_tree(data, tree, 0)
+        elif _print_found(data, tree, args.find, "") == 0:
+            print(f"no {args.find} box")
     except boxes.BoxError as e:
         print(f"error: {e}")
         return 1
-    _print_tree(data, tree, 0)
     if not any(b.type == "moov" for b in tree):
         print("no moov box")
     return 0
@@ -99,6 +104,20 @@ def _print_tree(data, tree, depth):
         fields = "".join(f" {k}={v}" for k, v in boxes.decode(data, b).items())
         print(f"{'  ' * depth}{b.type} {b.start} {b.size}{fields}")
         _print_tree(data, b.children, depth + 1)
+
+
+def _print_found(data, tree, box_type, parent):
+    """Print every box of `box_type` anywhere in `tree` as `path start size` and its fields; return how many."""
+    from . import boxes
+    count = 0
+    for b in tree:
+        path = parent + b.type
+        if b.type == box_type:
+            fields = "".join(f" {k}={v}" for k, v in boxes.decode(data, b).items())
+            print(f"{path} {b.start} {b.size}{fields}")
+            count = count + 1
+        count = count + _print_found(data, b.children, box_type, path + "/")
+    return count
 
 
 def _add_hex(sub):
@@ -145,6 +164,7 @@ def _add_dump(sub):
     """Register the `dump` command."""
     d = sub.add_parser("dump", help="print the box tree")
     d.add_argument("file", help="the MP4 file to read")
+    d.add_argument("--find", metavar="TYPE", help="print only the boxes of this type, by their path")
     d.set_defaults(func=cmd_dump)
 
 

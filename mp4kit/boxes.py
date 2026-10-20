@@ -107,6 +107,20 @@ def walk(data, start=0, end=None):
     return tree
 
 
+def find(tree, path):
+    """The first box down `path` ("moov/mvhd"): one type per level, from the top, like folders in a file path."""
+    first, _, rest = path.partition("/")
+    for box in tree:
+        if box.type != first:
+            continue
+        if not rest:
+            return box
+        found = find(box.children, rest)
+        if found:
+            return found
+    return None
+
+
 def read_mp4(path):
     """The file's bytes (episode 19 switches this to mmap)."""
     with open(path, "rb") as f:
