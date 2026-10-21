@@ -81,7 +81,7 @@ def cmd_dump(args):
     """`dump FILE [--find TYPE]`: print the box tree, indented by depth, or only the boxes of one type by their
     path; each with any decoded fields."""
     from . import boxes
-    from . import tables  # noqa: F401  (importing it registers read_mvhd and read_tkhd in boxes.DECODERS)
+    from . import tables  # noqa: F401  (importing it registers its readers in boxes.DECODERS)
     data = boxes.read_mp4(args.file)
     try:
         tree = boxes.walk(data)

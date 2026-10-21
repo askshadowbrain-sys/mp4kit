@@ -1,4 +1,5 @@
-"""The map room: moov and the boxes it holds. Episode 10: mvhd, the movie's wall clock. Episode 11: tkhd."""
+"""The map room: moov and the boxes it holds. Episode 10: mvhd, the movie's wall clock. Episode 11: tkhd.
+Episode 12: mdhd and hdlr, a track's own clock and its door sign."""
 import struct
 
 from . import boxes
@@ -62,3 +63,47 @@ def read_tkhd(data, box):
 
 
 boxes.DECODERS["tkhd"] = read_tkhd
+
+
+def language(code):
+    """A track's language from mdhd's 16 bits: a pad bit, then three 5-bit letters, each stored as the
+    letter's code minus 0x60 (0x15C7 is "eng", 0x55C4 is "und")."""
+    first = (code >> 10) & 0x1F
+    second = (code >> 5) & 0x1F
+    third = code & 0x1F
+    return chr(first + 0x60) + chr(second + 0x60) + chr(third + 0x60)
+
+
+def read_mdhd(data, box):
+    """The room's clock: the track's own ticks per second (timescale), the media's length in those ticks
+    (duration), and the track's language."""
+    version = boxes.read_fullbox(data, box)[0]
+    need = 44 if version == 1 else 32
+    if box.size < need:
+        raise boxes.BoxError(f"mdhd at {box.start}: version {version} needs {need} bytes, box has {box.size}")
+    wide = 8 if version == 1 else 4
+    at = box.payload + 4 + wide + wide
+    timescale = boxes.u32(data, at)
+    duration = boxes.u64(data, at + 4) if version == 1 else boxes.u32(data, at + 4)
+    if timescale == 0:
+        raise boxes.BoxError(f"mdhd at {box.start}: timescale 0, a clock that never ticks")
+    return {"version": version, "timescale": timescale, "duration": duration,
+            "seconds": timing.seconds(duration, timescale),
+            "language": language(boxes.u16(data, at + 4 + wide))}
+
+
+boxes.DECODERS["mdhd"] = read_mdhd
+
+
+def read_hdlr(data, box):
+    """The door sign: handler_type says what the track holds (vide, soun, sbtl; mdir under udta/meta), then
+    a name for people, a C string ending in a zero byte."""
+    if box.size < 32:
+        raise boxes.BoxError(f"hdlr at {box.start}: needs 32 bytes, box has {box.size}")
+    at = box.payload
+    handler_type = data[at + 8:at + 12].decode("latin-1")
+    name = data[at + 24:box.end].split(b"\0")[0].decode("utf-8", "replace")
+    return {"handler_type": handler_type, "name": name}
+
+
+boxes.DECODERS["hdlr"] = read_hdlr

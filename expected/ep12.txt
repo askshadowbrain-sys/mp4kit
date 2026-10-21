@@ -1,0 +1,4 @@
+moov/trak/mdia/hdlr 109063 45 handler_type=vide name=VideoHandler
+moov/trak/mdia/hdlr 110517 45 handler_type=soun name=SoundHandler
+moov/trak/mdia/hdlr 112302 48 handler_type=sbtl name=SubtitleHandler
+moov/udta/meta/hdlr 112698 33 handler_type=mdir name=

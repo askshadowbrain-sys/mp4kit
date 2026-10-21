@@ -23,6 +23,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep09 (finale) | boxes.py +21/-0, cli.py +32/-1 | 36 | ~34 (finale ≤ ~90) | `cli.cmd_dump` 11 (13); `boxes.read_header` 15 (17) overall |
 | ep10 | boxes.py +14/-0, cli.py +22/-2, tables.py +25 (new), timing.py +6 (new) | 49 | ~17 | `tables.read_mvhd` 15 (17) and `cli.cmd_dump` 15 (18), both at the limit; `boxes.read_header` 15 (17) overall |
 | ep11 | boxes.py +14/-0, cli.py +1/-1, tables.py +40/-1 | 35 | ~21 | `tables.read_tkhd` 14 (17), `boxes.find_all` 9 (11); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
+| ep12 | cli.py +1/-1, tables.py +46/-1 | 28 | ~14 | `tables.read_mdhd` 13 (16), `tables.read_hdlr` 6 (9), `tables.language` 4 (7); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 
 ## Functions over 15 lines
 
@@ -128,4 +129,27 @@ arithmetic became `picture_size`, so its body is 12 lines.
   - **On-screen trim:** show the version-1 lines and the size check of `read_tkhd` as finished code (ep10's
     pattern), and `TURNS`'s 180 and 270 entries as finished; type `find_all`, `fixed`, `rotation`, the
     version-0 path and the registration line (about 22 lines).
+- **ep12 (28, plan ~14).** The plan's ~14 counted a version-0 `read_mdhd` (timescale, duration, language), a
+  one-line `language` and a `read_hdlr` that reads handler_type and name. The extra lines are:
+  - `read_mdhd` follows `read_mvhd` line for line: version 1 (64-bit creation, modification and duration; 44
+    bytes) as well as version 0 (32 bytes), the size check and the timescale-0 check as `BoxError` with the
+    offset (design rule 4): 5 lines. It also returns `seconds` (as `read_mvhd` does), so dump prints both clocks
+    in seconds and the two-clocks point reads straight off `--find mdhd`. Every committed file's mdhd is
+    version 0; the version-1 path is tested in memory.
+  - `language` unpacks the three letters one statement per line (first, second, third, then the `chr` sum):
+    4 body lines, not 1.
+  - `read_hdlr` checks for the 32 bytes before the name (`BoxError`, 2 lines). The name is read as a C string
+    (UTF-8 up to the first zero byte, or to the box's end); every committed hdlr holds one (`VideoHandler\0`,
+    `SoundHandler\0`, `SubtitleHandler\0`, and a lone `00` under udta/meta). A QuickTime-style counted
+    (Pascal) name is not handled; it would show its length byte as a first character.
+  - `cmd_dump` is unchanged; the comment in `cli.py` now says `tables` registers "its readers" (the 1/-1), so
+    later episodes need not edit it.
+  - **No earlier test changed:** test_ep09's first-lines test stops at mvhd.
+  - **Blocks the Build-it scene shows:** `language` (shift 10, 5, 0, mask 0x1F, add 0x60); the version-0 path of
+    `read_mdhd` (timescale 12 bytes into the payload, duration after it, language 2 bytes after duration);
+    `read_hdlr` (handler_type 8 bytes into the payload, after version/flags and pre_defined; three reserved
+    words; the name from +24 to the zero byte); the two `DECODERS` lines.
+  - **On-screen trim:** show the version-1 lines and both checks of `read_mdhd` and the size check of
+    `read_hdlr` as finished code (ep10's pattern); type `language`, the version-0 path, `read_hdlr`'s four
+    reading lines and the two registration lines (about 21 lines).
 - ep01–ep03 are 6–10 lines over their estimates.
