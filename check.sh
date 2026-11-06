@@ -20,6 +20,7 @@ cmd_for() {
     ep10) echo 'python3 -m mp4kit dump testfiles/out/phone.mp4 --find mvhd' ;;
     ep11) echo 'python3 -m mp4kit dump testfiles/out/rotated.mp4 --find tkhd' ;;
     ep12) echo 'python3 -m mp4kit dump testfiles/out/subs.mp4 --find hdlr' ;;
+    ep13) echo 'python3 -m mp4kit dump testfiles/out/phone.mp4 --find avcC' ;;
     *) return 1 ;;
   esac
 }

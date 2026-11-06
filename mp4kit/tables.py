@@ -1,8 +1,10 @@
 """The map room: moov and the boxes it holds. Episode 10: mvhd, the movie's wall clock. Episode 11: tkhd.
-Episode 12: mdhd and hdlr, a track's own clock and its door sign."""
+Episode 12: mdhd and hdlr, a track's own clock and its door sign. Episode 13: stsd, the filing cabinet's top
+tray, its video instruction sheets (avc1) and their avcC."""
 import struct
 
 from . import boxes
+from . import nal
 from . import timing
 
 
@@ -107,3 +109,59 @@ def read_hdlr(data, box):
 
 
 boxes.DECODERS["hdlr"] = read_hdlr
+
+
+def read_stsd(data, box):
+    """The top tray of the filing cabinet (stbl): entry_count, then that many sample entries, one box each (avc1,
+    mp4a, ...). A sample says which entry it needs by number (sample_description_index, carried by stsc)."""
+    entry_count = boxes.u32(data, box.payload + 4)
+    entries = boxes.walk(data, box.payload + 8, box.end)
+    if len(entries) != entry_count:
+        raise boxes.BoxError(f"stsd at {box.start}: entry_count {entry_count}, but it holds {len(entries)} entries")
+    return entries
+
+
+def read_visual_entry(data, box):
+    """A video sample entry's fixed fields (avc1, hvc1, ...): 6 reserved bytes and data_reference_index, as in
+    every sample entry; 16 bytes of pre_defined and reserved; width and height; two 72-dpi resolutions,
+    reserved, frame_count 1; compressorname, a length byte then the name in 31 bytes; depth 0x18;
+    pre_defined -1. Its own boxes (avcC, pasp, btrt, ...) start 78 bytes into the payload."""
+    if box.size < 86:
+        raise boxes.BoxError(f"{box.type} at {box.start}: a visual sample entry needs 86 bytes, box has {box.size}")
+    at = box.payload
+    name = data[at + 43:at + 43 + min(data[at + 42], 31)]
+    return {"data_reference_index": boxes.u16(data, at + 6), "width": boxes.u16(data, at + 24),
+            "height": boxes.u16(data, at + 26), "compressorname": name.decode("latin-1"),
+            "depth": boxes.u16(data, at + 74)}
+
+
+boxes.DECODERS["avc1"] = read_visual_entry
+
+
+def codec_string(entry):
+    """The codec string a browser is asked about (RFC 6381): "avc1." then avcC's profile, compatibility and
+    level bytes as two hex digits each (100, 0x00, 30 → avc1.64001E)."""
+    return (f"avc1.{entry['AVCProfileIndication']:02X}{entry['profile_compatibility']:02X}"
+            f"{entry['AVCLevelIndication']:02X}")
+
+
+def read_avcc(data, box):
+    """The instruction sheets (AVCDecoderConfigurationRecord): version, profile, compatibility, level, the NAL
+    length size minus one (low 2 bits), the SPS (count in the low 5 bits) and PPS, each with a 2-byte length;
+    profiles other than Baseline, Main and Extended (66, 77, 88) add chroma_format and the bit depths after them."""
+    at = box.payload
+    sps, after = nal._read_param_sets(data, at + 6, data[at + 5] & 0x1F)
+    pps, after = nal._read_param_sets(data, after + 1, data[after])
+    if after > box.end:
+        raise boxes.BoxError(f"avcC at {box.start}: the parameter sets run to {after}, past the box's end ({box.end})")
+    fields = {"configurationVersion": data[at], "AVCProfileIndication": data[at + 1],
+              "profile_compatibility": data[at + 2], "AVCLevelIndication": data[at + 3],
+              "lengthSizeMinusOne": data[at + 4] & 3, "SPS": sps, "PPS": pps}
+    if fields["AVCProfileIndication"] not in (66, 77, 88) and after + 4 <= box.end:
+        fields.update(chroma_format=data[after] & 3, bit_depth_luma_minus8=data[after + 1] & 7,
+                      bit_depth_chroma_minus8=data[after + 2] & 7)
+    fields["codec"] = codec_string(fields)
+    return fields
+
+
+boxes.DECODERS["avcC"] = read_avcc

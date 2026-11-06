@@ -1,0 +1,1 @@
+moov/trak/mdia/minf/stbl/stsd/avc1/avcC 109255 55 configurationVersion=1 AVCProfileIndication=100 profile_compatibility=0 AVCLevelIndication=30 lengthSizeMinusOne=3 SPS=['6764001eacd940a02ff970110000030001000003003c0f162d96'] PPS=['68ebe112c8b0'] chroma_format=1 bit_depth_luma_minus8=0 bit_depth_chroma_minus8=0 codec=avc1.64001E

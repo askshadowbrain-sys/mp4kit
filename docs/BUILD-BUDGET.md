@@ -24,6 +24,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep10 | boxes.py +14/-0, cli.py +22/-2, tables.py +25 (new), timing.py +6 (new) | 49 | ~17 | `tables.read_mvhd` 15 (17) and `cli.cmd_dump` 15 (18), both at the limit; `boxes.read_header` 15 (17) overall |
 | ep11 | boxes.py +14/-0, cli.py +1/-1, tables.py +40/-1 | 35 | ~21 | `tables.read_tkhd` 14 (17), `boxes.find_all` 9 (11); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 | ep12 | cli.py +1/-1, tables.py +46/-1 | 28 | ~14 | `tables.read_mdhd` 13 (16), `tables.read_hdlr` 6 (9), `tables.language` 4 (7); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
+| ep13 | cli.py +20/-9, tables.py +59/-1 | 49 | ~29 | `tables.read_avcc` 13 (17), `cli.cmd_sps` 13 (16), `tables.read_visual_entry` 7 (12), `tables.read_stsd` 5 (8), `tables.codec_string` 2 (5), `cli._show` 3 (5); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 
 ## Functions over 15 lines
 
@@ -152,4 +153,37 @@ arithmetic became `picture_size`, so its body is 12 lines.
   - **On-screen trim:** show the version-1 lines and both checks of `read_mdhd` and the size check of
     `read_hdlr` as finished code (ep10's pattern); type `language`, the version-0 path, `read_hdlr`'s four
     reading lines and the two registration lines (about 21 lines).
+- **ep13 (49, plan ~29).** The four plan functions come to 28 code lines with their three checks taken out (the
+  `nal` import 1, `read_stsd` 4, `read_visual_entry` 6, `codec_string` 3, `read_avcc` 12, the two `DECODERS`
+  lines): the plan's estimate. The extra 21 are cli.py's 15 and the checks' 6:
+  - `cmd_sps` reads the SPS and PPS from `find(walk(data), "moov/trak/mdia/minf/stbl/stsd/avc1/avcC")` and
+    `read_avcc` instead of ep04's byte search (section 4.1 of the plan assigns this to episode 13): 9 added, 5
+    removed, 3 of the 9 being the `no …/avc1/avcC box` error and exit 1 (a file with no avc1, such as hevc.mp4,
+    would otherwise raise `AttributeError` on `None`; ep04's search raised `ValueError`). `cmd_annexb` keeps the
+    stopgap.
+  - `_show` (3 body lines) and the two `_show(v)` edits in `_print_tree` and `_print_found`: avcC's SPS and PPS are
+    bytes, and dump now prints bytes as hex digits (`SPS=['6764001e…']`) instead of Python's `b'gd\x00\x1e…'`.
+    Every other field prints exactly as before (a list of ints or strings is unchanged).
+  - The checks (design rule 4), 2 lines each: `read_stsd` raises when entry_count and the boxes inside disagree;
+    `read_visual_entry` when the box is under 86 bytes; `read_avcc` when the parameter sets run past the box.
+  - **Left for later episodes:** `read_stsd` is not registered in `DECODERS` (it returns boxes, not fields, and
+    dump already prints the entries as children); only `avc1` registers `read_visual_entry` (hvc1, hev1, av01 and
+    encv have the same 78 bytes of fields, episode 33 / 35 can register them in one line each); `codec_string`
+    builds `avc1.` strings from an avcC's fields only (avc3 has no committed file; hvc1/av01 strings are episode
+    33); numOfSequenceParameterSetExt is not read (0 in every committed file).
+  - **Field names** follow ISO/IEC 14496-15 (design rule 5): `lengthSizeMinusOne=3` (the plan's "length size 4" is
+    it + 1), `SPS` / `PPS` as lists (numOfSequenceParameterSets is the low 5 bits of 0xE1 = 1), `chroma_format`,
+    `bit_depth_luma_minus8`, `bit_depth_chroma_minus8`. The tail is read for any profile other than 66, 77, 88
+    (the 14496-15 rule ffmpeg's writer follows) when 4 bytes are left in the box.
+  - **No earlier test changed:** test_ep09's first-lines test stops at mvhd and test_ep04's `test_cmd_sps` output is
+    unchanged (`profile 100 level 30 640x360 CABAC`).
+  - **Blocks the Build-it scene shows:** `read_stsd` (entry_count at payload + 4, the entries walked from payload +
+    8); `read_visual_entry` (data_reference_index +6, width +24, height +26, compressorname's length byte +42 and
+    the name from +43, depth +74; children from +78); `read_avcc` (the five bytes at the payload, the SPS count's low
+    5 bits, the SPS and PPS with their 2-byte lengths through `nal._read_param_sets`, the High tail);
+    `codec_string` (100, 0x00, 30 → `64 00 1E`); the two `DECODERS` lines; `cmd_sps`'s four new lines.
+  - **On-screen trim:** show the three checks, the High-profile tail, `_show` with its two call sites and
+    `cmd_sps`'s `None` branch as finished code (ep10's pattern); type `read_stsd`'s three reading lines,
+    `read_visual_entry`'s name and return, `read_avcc`'s reading lines, `codec_string`, the registration lines and
+    `cmd_sps`'s find / read_avcc / parse lines (about 24 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

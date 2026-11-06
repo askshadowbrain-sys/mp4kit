@@ -31,13 +31,17 @@ def cmd_nals(args):
 
 
 def cmd_sps(args):
-    """`sps FILE`: print the profile, level, picture size and entropy coder from the SPS and PPS."""
-    from . import nal
-    with open(args.file, "rb") as f:
-        contents = f.read()
-    sps_bytes, pps_bytes = nal._avcc_params_stopgap(contents)
-    sps = nal.parse_sps(sps_bytes)
-    pps = nal.parse_pps(pps_bytes)
+    """`sps FILE`: print the profile, level, picture size and entropy coder from the SPS and PPS, read from the
+    first video track's avcC (moov/trak/mdia/minf/stbl/stsd/avc1/avcC)."""
+    from . import boxes, nal, tables
+    data = boxes.read_mp4(args.file)
+    avcc = boxes.find(boxes.walk(data), "moov/trak/mdia/minf/stbl/stsd/avc1/avcC")
+    if avcc is None:
+        print("error: no moov/trak/mdia/minf/stbl/stsd/avc1/avcC box")
+        return 1
+    config = tables.read_avcc(data, avcc)
+    sps = nal.parse_sps(config["SPS"][0])
+    pps = nal.parse_pps(config["PPS"][0])
     width, height = nal.picture_size(sps)
     coder = "CABAC" if pps["entropy_coding_mode_flag"] == 1 else "CAVLC"
     print(f"profile {sps['profile_idc']} level {sps['level_idc']} {width}x{height} {coder}")
@@ -97,11 +101,18 @@ def cmd_dump(args):
     return 0
 
 
+def _show(value):
+    """A field as dump prints it: bytes as hex digits (in a list too), anything else as Python prints it."""
+    if isinstance(value, list):
+        return [_show(v) for v in value]
+    return value.hex() if isinstance(value, bytes) else value
+
+
 def _print_tree(data, tree, depth):
     """Print each box of `tree` at `depth` (two spaces a level), then its children one level deeper."""
     from . import boxes
     for b in tree:
-        fields = "".join(f" {k}={v}" for k, v in boxes.decode(data, b).items())
+        fields = "".join(f" {k}={_show(v)}" for k, v in boxes.decode(data, b).items())
         print(f"{'  ' * depth}{b.type} {b.start} {b.size}{fields}")
         _print_tree(data, b.children, depth + 1)
 
@@ -113,7 +124,7 @@ def _print_found(data, tree, box_type, parent):
     for b in tree:
         path = parent + b.type
         if b.type == box_type:
-            fields = "".join(f" {k}={v}" for k, v in boxes.decode(data, b).items())
+            fields = "".join(f" {k}={_show(v)}" for k, v in boxes.decode(data, b).items())
             print(f"{path} {b.start} {b.size}{fields}")
             count = count + 1
         count = count + _print_found(data, b.children, box_type, path + "/")
