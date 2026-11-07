@@ -1,6 +1,7 @@
 """The map room: moov and the boxes it holds. Episode 10: mvhd, the movie's wall clock. Episode 11: tkhd.
 Episode 12: mdhd and hdlr, a track's own clock and its door sign. Episode 13: stsd, the filing cabinet's top
-tray, its video instruction sheets (avc1) and their avcC."""
+tray, its video instruction sheets (avc1) and their avcC. Episode 14: the generic table, and drawers 1 and 2,
+stts (When?) and stss (Where can I start?)."""
 import struct
 
 from . import boxes
@@ -165,3 +166,32 @@ def read_avcc(data, box):
 
 
 boxes.DECODERS["avcC"] = read_avcc
+
+
+def read_table(data, box, fmt):
+    """A sample table's shape: version and flags (4 bytes), entry_count (4 bytes), then entry_count rows, each
+    unpacked with the struct format `fmt` (">II" is two 32-bit numbers a row)."""
+    entry_count = boxes.u32(data, box.payload + 4)
+    end = box.payload + 8 + entry_count * struct.calcsize(fmt)
+    if end > box.end:
+        raise boxes.BoxError(f"{box.type} at {box.start}: entry_count {entry_count} needs {end - box.start} bytes, "
+                             f"box has {box.size}")
+    return list(struct.iter_unpack(fmt, data[box.payload + 8:end]))
+
+
+def read_stts(data, box):
+    """Drawer 1, When?: runs of (sample_count, sample_delta), so many samples in a row that each last so many
+    ticks of the track's clock (f1: [(12, 33)], twelve samples of 33 ms)."""
+    return read_table(data, box, ">II")
+
+
+def read_stss(data, box):
+    """Drawer 2, Where can I start?: the sync samples (keyframes) by sample_number, counted from 1. No stss box
+    means every sample is a sync sample, so this gives None."""
+    if box is None:
+        return None
+    return [row[0] for row in read_table(data, box, ">I")]
+
+
+boxes.DECODERS["stts"] = lambda data, box: {"entries": read_stts(data, box)}
+boxes.DECODERS["stss"] = lambda data, box: {"sample_number": read_stss(data, box)}

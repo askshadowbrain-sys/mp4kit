@@ -25,6 +25,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep11 | boxes.py +14/-0, cli.py +1/-1, tables.py +40/-1 | 35 | ~21 | `tables.read_tkhd` 14 (17), `boxes.find_all` 9 (11); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 | ep12 | cli.py +1/-1, tables.py +46/-1 | 28 | ~14 | `tables.read_mdhd` 13 (16), `tables.read_hdlr` 6 (9), `tables.language` 4 (7); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 | ep13 | cli.py +20/-9, tables.py +59/-1 | 49 | ~29 | `tables.read_avcc` 13 (17), `cli.cmd_sps` 13 (16), `tables.read_visual_entry` 7 (12), `tables.read_stsd` 5 (8), `tables.codec_string` 2 (5), `cli._show` 3 (5); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
+| ep14 | tables.py +31/-1, timing.py +13/-1 | 23 | ~15 | `timing.decode_times` 7 (10), `tables.read_table` 6 (9), `tables.read_stss` 3 (6), `tables.read_stts` 1 (4); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 
 ## Functions over 15 lines
 
@@ -186,4 +187,25 @@ arithmetic became `picture_size`, so its body is 12 lines.
     `cmd_sps`'s `None` branch as finished code (ep10's pattern); type `read_stsd`'s three reading lines,
     `read_visual_entry`'s name and return, `read_avcc`'s reading lines, `codec_string`, the registration lines and
     `cmd_sps`'s find / read_avcc / parse lines (about 24 lines).
+- **ep14 (23, plan ~15).** The four plan functions with their check taken out come to 18 code lines
+  (`read_table` 4, `read_stts` 2, `read_stss` 4, `decode_times` 8); the extra are the check's 3 lines and the
+  two `DECODERS` lines:
+  - `read_table` raises `BoxError` when entry_count's rows run past the box (design rule 4; walk.py's `table()`
+    had no check): the `if` and a `raise` wrapped over two lines to stay inside 120 columns.
+  - `boxes.DECODERS["stts"]` and `["stss"]` are one-line lambdas that wrap the lists in a dict (dump prints a
+    reader's dict), so `dump f1.mp4 --find stss` prints `sample_number=[1, 5, 9]` and `--find stts` prints
+    `entries=[(12, 33)]`. Two lines, no named helper.
+  - `decode_times` keeps one statement per line (`times`, `t`, two loops, append, add, return: 8), where
+    walk.py packed it into 5.
+  - **Not done here (left for later episodes):** `read_table` ignores version and flags (stts and stss are
+    always version 0; ctts version 1 in ep17 needs only the format `">Ii"`); walk.py's `skip` argument is not
+    carried (stsz, ep15, has its own shape); no time → sample or keyframe lookup (`sample_at`, `sync_before`
+    are ep19); dump prints stts runs, not each sample's decode time.
+  - **No earlier test changed:** test_ep09's first-lines test stops at mvhd, and no test compares a full dump
+    of a file with an stbl.
+  - **Blocks the Build-it scene shows:** `read_table` (entry_count at payload + 4, rows from payload + 8,
+    `struct.calcsize(fmt)` bytes each); `read_stts` (`">II"`); `read_stss` (the `None` branch, then the first
+    column of `">I"` rows); `decode_times` (the running total); the two registration lines.
+  - **On-screen trim:** show `read_table`'s check and the two registration lines as finished code (ep10's
+    pattern); type the rest (about 18 lines).
 - ep01–ep03 are 6–10 lines over their estimates.
