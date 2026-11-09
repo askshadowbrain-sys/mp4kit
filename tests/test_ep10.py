@@ -85,6 +85,7 @@ class Ep10(unittest.TestCase):
 
     def test_cmd_dump_find_many(self):
         lines = run_cli("dump", "testfiles/out/phone.mp4", "--find", "stco").splitlines()
+        lines = [" ".join(line.split()[:3]) for line in lines]    # ep15 decodes stco; tag ep10 keeps its own test
         self.assertEqual(lines, ["moov/trak/mdia/minf/stbl/stco 110062 252",
                                  "moov/trak/mdia/minf/stbl/stco 111789 252"])
 

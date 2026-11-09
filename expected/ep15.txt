@@ -1,0 +1,1 @@
+moov/trak/mdia/minf/stbl/stsc 22638 40 entries=[(1, 4, 1), (3, 2, 1)] chunk_sizes=[4, 4, 2, 2]

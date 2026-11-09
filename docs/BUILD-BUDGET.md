@@ -26,6 +26,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep12 | cli.py +1/-1, tables.py +46/-1 | 28 | ~14 | `tables.read_mdhd` 13 (16), `tables.read_hdlr` 6 (9), `tables.language` 4 (7); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 | ep13 | cli.py +20/-9, tables.py +59/-1 | 49 | ~29 | `tables.read_avcc` 13 (17), `cli.cmd_sps` 13 (16), `tables.read_visual_entry` 7 (12), `tables.read_stsd` 5 (8), `tables.codec_string` 2 (5), `cli._show` 3 (5); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 | ep14 | tables.py +31/-1, timing.py +13/-1 | 23 | ~15 | `timing.decode_times` 7 (10), `tables.read_table` 6 (9), `tables.read_stss` 3 (6), `tables.read_stts` 1 (4); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
+| ep15 | tables.py +53/-1 | 29 | ~16 | `tables.read_stsz` 9 (12), `tables.chunk_sizes` 5 (8), `tables._stsc_fields` 4 (7), `tables.read_stco` 2 (5), `tables.read_stsc` 1 (4); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 
 ## Functions over 15 lines
 
@@ -208,4 +209,31 @@ arithmetic became `picture_size`, so its body is 12 lines.
     column of `">I"` rows); `decode_times` (the running total); the two registration lines.
   - **On-screen trim:** show `read_table`'s check and the two registration lines as finished code (ep10's
     pattern); type the rest (about 18 lines).
+- **ep15 (29, plan ~16).** The four plan functions with the check taken out come to 18 code lines
+  (`read_stsc` 2, `read_stco` 3, `read_stsz` 7, `chunk_sizes` 6), near the plan's estimate. The extra 11 are the
+  check's 3 lines and dump's wiring, 8:
+  - `read_stsz` raises `BoxError` when sample_count's entries run past the box (design rule 4), as `read_table`
+    does: `stsz at 0: sample_count 13 needs 72 bytes, box has 68`. stsz does not fit `read_table`: after
+    version/flags come sample_size and sample_count, and the entries are there only when sample_size is 0 (a
+    non-zero sample_size means every sample is that size, and the list is expanded). So it reads its own two fields
+    and its own rows (and so needs its own check). walk.py's `skip` argument would have fitted it, but it would print
+    `entry_count` for stsz's sample_count; not carried (ep14's note).
+  - `_stsc_fields` (4 body lines) is stsc's decoder, so the episode command prints the unrolled chunks:
+    `dump f1.mp4 --find stsc` prints `entries=[(1, 4, 1), (3, 2, 1)] chunk_sizes=[4, 4, 2, 2]`. stsc alone does
+    not say how many chunks there are (its last rule runs to the final chunk), and a decoder gets only `(data, box)`,
+    so it walks the file again, takes the stbl that holds this stsc and counts its stco (or co64) entries.
+  - Three registration lines: `stsc`, `stco` and `co64` (one chained line, both through `read_stco`), `stsz`.
+    Field names follow the spec: `chunk_offset`, `entry_size`.
+  - **Not done here (left for later episodes):** no sample → chunk → offset function (`sample_table`, ep16; the
+    episode works sample 7's offset by hand); stsc's sample_description_index is read but not used (1 in every
+    committed file); `_stsc_fields` has no check for an stbl without stco/co64 (none in the committed files; it
+    would raise `AttributeError`); stz2 (compact sizes) is not read (no committed file has one).
+  - **Earlier test changed at this tag:** `test_ep10.test_cmd_dump_find_many` (dump's stco lines now carry
+    `chunk_offset=[…]`); it now compares each line's path, start and size, with the comment that tag ep10 keeps
+    its own test.
+  - **Blocks the Build-it scene shows:** `read_stsc` (`">III"`); `read_stco` (`">I"`, or `">Q"` for co64);
+    `read_stsz` (sample_size at payload + 4, sample_count at + 8, the constant branch, the rows from + 12);
+    `chunk_sizes` (each rule ends where the next begins, the last at n_chunks + 1); the three registration lines.
+  - **On-screen trim:** show `read_stsz`'s check, `_stsc_fields` and the registration lines as finished code
+    (ep10's pattern); type the rest (about 18 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

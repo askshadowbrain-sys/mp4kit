@@ -1,7 +1,8 @@
 """The map room: moov and the boxes it holds. Episode 10: mvhd, the movie's wall clock. Episode 11: tkhd.
 Episode 12: mdhd and hdlr, a track's own clock and its door sign. Episode 13: stsd, the filing cabinet's top
 tray, its video instruction sheets (avc1) and their avcC. Episode 14: the generic table, and drawers 1 and 2,
-stts (When?) and stss (Where can I start?)."""
+stts (When?) and stss (Where can I start?). Episode 15: drawers 3 to 5, stsc (Which chunk?), stco (Where does it
+start?) and stsz (How big is each sample?)."""
 import struct
 
 from . import boxes
@@ -195,3 +196,54 @@ def read_stss(data, box):
 
 boxes.DECODERS["stts"] = lambda data, box: {"entries": read_stts(data, box)}
 boxes.DECODERS["stss"] = lambda data, box: {"sample_number": read_stss(data, box)}
+
+
+def read_stsc(data, box):
+    """Drawer 3, Which chunk?: rules of (first_chunk, samples_per_chunk, sample_description_index). Chunks count
+    from 1, and a rule holds from its first_chunk until the next rule's (f1: [(1, 4, 1), (3, 2, 1)])."""
+    return read_table(data, box, ">III")
+
+
+def read_stco(data, box):
+    """Drawer 4, Where does it start?: each chunk's byte offset in the file, one entry per chunk. co64 is the same
+    table with 64-bit offsets (f1: [40, 6598, 14356, 21149])."""
+    fmt = ">Q" if box.type == "co64" else ">I"
+    return [row[0] for row in read_table(data, box, fmt)]
+
+
+def read_stsz(data, box):
+    """Drawer 5, How big is each sample?: every sample's size in bytes. Not read_table's shape: sample_size and
+    sample_count come first, and the entries are there only when sample_size is 0 (else every sample is that size)."""
+    sample_size = boxes.u32(data, box.payload + 4)
+    sample_count = boxes.u32(data, box.payload + 8)
+    if sample_size != 0:
+        return [sample_size] * sample_count
+    end = box.payload + 12 + sample_count * 4
+    if end > box.end:
+        raise boxes.BoxError(f"stsz at {box.start}: sample_count {sample_count} needs {end - box.start} bytes, "
+                             f"box has {box.size}")
+    return [row[0] for row in struct.iter_unpack(">I", data[box.payload + 12:end])]
+
+
+def chunk_sizes(stsc, n_chunks):
+    """stsc's rules unrolled: how many samples each of the `n_chunks` chunks holds. Each rule runs until the next
+    rule's first_chunk; the last one runs to the final chunk (f1: [4, 4, 2, 2])."""
+    ends = [row[0] for row in stsc[1:]] + [n_chunks + 1]
+    sizes = []
+    for (first_chunk, samples_per_chunk, _), end in zip(stsc, ends):
+        sizes.extend([samples_per_chunk] * (end - first_chunk))
+    return sizes
+
+
+def _stsc_fields(data, box):
+    """dump's stsc fields: the rules, and the samples in each chunk. stsc does not say how many chunks there are;
+    that is the number of entries in the stco (or co64) of the same stbl."""
+    stsc = read_stsc(data, box)
+    stbl = [s for s in boxes.find_all(boxes.walk(data), "moov/trak/mdia/minf/stbl") if s.start < box.start < s.end][0]
+    offsets = boxes.find(stbl.children, "stco") or boxes.find(stbl.children, "co64")
+    return {"entries": stsc, "chunk_sizes": chunk_sizes(stsc, len(read_stco(data, offsets)))}
+
+
+boxes.DECODERS["stsc"] = _stsc_fields
+boxes.DECODERS["stco"] = boxes.DECODERS["co64"] = lambda data, box: {"chunk_offset": read_stco(data, box)}
+boxes.DECODERS["stsz"] = lambda data, box: {"entry_size": read_stsz(data, box)}
