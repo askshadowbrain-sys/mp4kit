@@ -2,8 +2,10 @@
 Episode 12: mdhd and hdlr, a track's own clock and its door sign. Episode 13: stsd, the filing cabinet's top
 tray, its video instruction sheets (avc1) and their avcC. Episode 14: the generic table, and drawers 1 and 2,
 stts (When?) and stss (Where can I start?). Episode 15: drawers 3 to 5, stsc (Which chunk?), stco (Where does it
-start?) and stsz (How big is each sample?)."""
+start?) and stsz (How big is each sample?). Episode 16: the five lookups as code, every sample of a track
+from its five drawers (Sample, sample_table)."""
 import struct
+from dataclasses import dataclass
 
 from . import boxes
 from . import nal
@@ -247,3 +249,44 @@ def _stsc_fields(data, box):
 boxes.DECODERS["stsc"] = _stsc_fields
 boxes.DECODERS["stco"] = boxes.DECODERS["co64"] = lambda data, box: {"chunk_offset": read_stco(data, box)}
 boxes.DECODERS["stsz"] = lambda data, box: {"entry_size": read_stsz(data, box)}
+
+
+@dataclass
+class Sample:
+    """One sample, as the five drawers give it: its number (from 1), its decode time (dts) and composition time
+    (cts) in the track's ticks, its size in bytes, its byte offset in the file, and whether it is a keyframe."""
+    number: int
+    dts: int
+    cts: int
+    size: int
+    offset: int
+    key: bool
+
+
+def _check_counts(stbl, stts_count, stsc_count, stsz_count):
+    """The drawers must agree on how many samples the track has (stts's runs, stsc unrolled over stco, stsz)."""
+    if not stts_count == stsc_count == stsz_count:
+        raise boxes.BoxError(f"stbl at {stbl.start}: stts has {stts_count} samples, stsc {stsc_count}, "
+                             f"stsz {stsz_count}")
+
+
+def sample_table(data, trak):
+    """Every sample of a track, each drawer of its stbl unrolled once, in lookup order: stts (When?), stss (Where
+    can I start?), stsc (Which chunk?), stco (Where does it start?), stsz (How big?). Tired Sailors Carry Oars
+    Slowly. A sample's offset is its chunk's offset plus the sizes of the samples before it in that chunk. No ctts
+    is read yet (episode 17), so cts = dts."""
+    stbl = boxes.find(trak.children, "mdia/minf/stbl")
+    times = timing.decode_times(read_stts(data, boxes.find(stbl.children, "stts")))
+    sync = read_stss(data, boxes.find(stbl.children, "stss"))
+    stsc = read_stsc(data, boxes.find(stbl.children, "stsc"))
+    offsets = read_stco(data, boxes.find(stbl.children, "stco") or boxes.find(stbl.children, "co64"))
+    sizes = read_stsz(data, boxes.find(stbl.children, "stsz"))
+    per_chunk = chunk_sizes(stsc, len(offsets))
+    _check_counts(stbl, len(times), sum(per_chunk), len(sizes))
+    samples = []
+    for offset, count in zip(offsets, per_chunk):
+        for _ in range(count):
+            n = len(samples) + 1
+            samples.append(Sample(n, times[n - 1], times[n - 1], sizes[n - 1], offset, sync is None or n in sync))
+            offset = offset + sizes[n - 1]
+    return samples

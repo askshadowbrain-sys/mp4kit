@@ -101,6 +101,26 @@ def cmd_dump(args):
     return 0
 
 
+def cmd_samples(args):
+    """`samples FILE [--track N]`: print a track's sample table, one sample a line, its columns in lookup order:
+    decode time (stts), keyframe (stss), offset (stsc + stco), size (stsz). Tracks count from 1 in file order."""
+    from . import boxes, tables
+    data = boxes.read_mp4(args.file)
+    traks = boxes.find_all(boxes.walk(data), "moov/trak")
+    if not 1 <= args.track <= len(traks):
+        print(f"error: no track {args.track}, the file has {len(traks)}")
+        return 1
+    trak = traks[args.track - 1]
+    handler = tables.read_hdlr(data, boxes.find(trak.children, "mdia/hdlr"))["handler_type"]
+    timescale = tables.read_mdhd(data, boxes.find(trak.children, "mdia/mdhd"))["timescale"]
+    samples = tables.sample_table(data, trak)
+    print(f"track {args.track} {handler}, timescale {timescale}, {len(samples)} samples")
+    print("sample dts key offset size")
+    for s in samples:
+        print(s.number, s.dts, "K" if s.key else "-", s.offset, s.size)
+    return 0
+
+
 def _show(value):
     """A field as dump prints it: bytes as hex digits (in a list too), anything else as Python prints it."""
     if isinstance(value, list):
@@ -179,11 +199,19 @@ def _add_dump(sub):
     d.set_defaults(func=cmd_dump)
 
 
+def _add_samples(sub):
+    """Register the `samples` command."""
+    s = sub.add_parser("samples", help="print a track's sample table")
+    s.add_argument("file", help="the MP4 file to read")
+    s.add_argument("--track", type=int, default=1, help="which track, counted from 1 in file order (default 1)")
+    s.set_defaults(func=cmd_samples)
+
+
 def main(argv: Optional[list] = None) -> int:
     """Parse the command line and run the chosen subcommand."""
     p = argparse.ArgumentParser(prog="mp4kit")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes, _add_dump):
+    for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes, _add_dump, _add_samples):
         add(sub)
     args = p.parse_args(argv)
     return args.func(args)

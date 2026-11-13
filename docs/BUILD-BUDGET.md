@@ -27,6 +27,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep13 | cli.py +20/-9, tables.py +59/-1 | 49 | ~29 | `tables.read_avcc` 13 (17), `cli.cmd_sps` 13 (16), `tables.read_visual_entry` 7 (12), `tables.read_stsd` 5 (8), `tables.codec_string` 2 (5), `cli._show` 3 (5); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 | ep14 | tables.py +31/-1, timing.py +13/-1 | 23 | ~15 | `timing.decode_times` 7 (10), `tables.read_table` 6 (9), `tables.read_stss` 3 (6), `tables.read_stts` 1 (4); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 | ep15 | tables.py +53/-1 | 29 | ~16 | `tables.read_stsz` 9 (12), `tables.chunk_sizes` 5 (8), `tables._stsc_fields` 4 (7), `tables.read_stco` 2 (5), `tables.read_stsc` 1 (4); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
+| ep16 | cli.py +29/-1, tables.py +44/-1 | 50 | ~30 | `tables.sample_table` 15 (20), at the limit, `cli.cmd_samples` 14 (17), `tables._check_counts` 3 (5), `cli._add_samples` 4 (6); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 
 ## Functions over 15 lines
 
@@ -236,4 +237,32 @@ arithmetic became `picture_size`, so its body is 12 lines.
     `chunk_sizes` (each rule ends where the next begins, the last at n_chunks + 1); the three registration lines.
   - **On-screen trim:** show `read_stsz`'s check, `_stsc_fields` and the registration lines as finished code
     (ep10's pattern); type the rest (about 18 lines).
+- **ep16 (50, plan ~30).** The three plan names with the check taken out come to 38 code lines (`Sample` 8:
+  decorator, class line and six fields; `sample_table` 15 with its signature and without the check call;
+  `cmd_samples` 15 with its signature), 8 over the plan's estimate, mostly `Sample`'s field lines. The extra
+  12 are the check (6: `_check_counts`, 4, and its call, plus the `dataclass` import) and the command's
+  registration (`_add_samples` 5, the `main` tuple 1, changed):
+  - `_check_counts` raises `BoxError` when the drawers disagree on how many samples the track has (design rule 4):
+    stts's runs, stsc unrolled over stco's chunk count, and stsz's sample_count. f1 with stts's sample_count 12
+    changed to 11: `stbl at 22422: stts has 11 samples, stsc 12, stsz 12`. Without it, a short stts would raise a
+    bare `IndexError` and a short stsc would silently drop samples (`zip` stops early). It is its own helper so
+    that `sample_table`'s body stays at 15 lines.
+  - `cmd_samples` prints a header line, `track 1 vide, timescale 15360, 60 samples` (hdlr and mdhd, 3 lines), so
+    the dts column has a clock; then `sample dts key offset size` and one line a sample, its columns in lookup
+    order (stts, stss, stsc + stco, stsz). `--track N` counts traks from 1 in file order (ffprobe's stream index
+    + 1), default 1; out of range prints `error: no track 3, the file has 2`, exit 1 (broken-nomoov.mp4: `the file
+    has 0`).
+  - `cts` is filled with `dts`: ctts is episode 17 (`read_ctts`, `composition_times`). `sync is None or n in
+    sync`: no stss means every sample is a keyframe (aac-only and every audio track).
+  - **Not done here (left for later episodes):** no ctts, no edit list (17, 18; dts starts at 0, where ffprobe
+    prints phone's first video dts as -1024); `cmd_samples` does not catch `BoxError` (a broken table prints a
+    traceback ending in the message; none of the committed files raises one); a track whose stsd holds several
+    sample entries is not split (sample_description_index is 1 everywhere); fragmented files give `[]` (frag,
+    episodes 30–31).
+  - **No earlier test changed.**
+  - **Blocks the Build-it scene shows:** `Sample` (six fields); `sample_table` (the five lookups in mnemonic
+    order, Tired Sailors Carry Oars Slowly, then the loop: each chunk's offset, plus each sample's size);
+    `cmd_samples`'s header and the row print.
+  - **On-screen trim:** show `_check_counts`, its call, `cmd_samples`'s track check and `_add_samples` as finished
+    code (ep10's pattern); type the rest (about 30 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

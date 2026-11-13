@@ -23,6 +23,7 @@ cmd_for() {
     ep13) echo 'python3 -m mp4kit dump testfiles/out/phone.mp4 --find avcC' ;;
     ep14) echo 'python3 -m mp4kit dump testfiles/out/f1.mp4 --find stss' ;;
     ep15) echo 'python3 -m mp4kit dump testfiles/out/f1.mp4 --find stsc' ;;
+    ep16) echo 'python3 -m mp4kit samples testfiles/out/phone.mp4 --track 1' ;;
     *) return 1 ;;
   esac
 }
