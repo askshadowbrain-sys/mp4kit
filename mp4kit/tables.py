@@ -4,7 +4,8 @@ tray, its video instruction sheets (avc1) and their avcC. Episode 14: the generi
 stts (When?) and stss (Where can I start?). Episode 15: drawers 3 to 5, stsc (Which chunk?), stco (Where does it
 start?) and stsz (How big is each sample?). Episode 16: the five lookups as code, every sample of a track
 from its five drawers (Sample, sample_table). Episode 17: ctts, the second-clock slip in the time drawer: each
-sample's composition time, its decode time plus the slip (read_ctts)."""
+sample's composition time, its decode time plus the slip (read_ctts). Episode 18: edts/elst, the timer at the
+corridor's entrance (read_elst)."""
 import struct
 from dataclasses import dataclass
 
@@ -264,6 +265,21 @@ def read_ctts(data, box):
 
 boxes.DECODERS["ctts"] = lambda data, box: {"version": boxes.read_fullbox(data, box)[0],
                                             "entries": read_ctts(data, box)}
+
+
+def read_elst(data, box):
+    """The timer at the corridor's entrance (edts/elst): edits of (segment_duration, media_time,
+    media_rate_integer, media_rate_fraction): skip to media_time, then play for segment_duration. Its length counts
+    in the movie's clock (mvhd timescale), its start in the track's (mdhd timescale). media_time -1 is an empty
+    edit: nothing of the track plays for that long. Version 0 is 32-bit, version 1 64-bit. No edts gives []."""
+    if box is None:
+        return []
+    wide = boxes.read_fullbox(data, box)[0] == 1
+    return read_table(data, box, ">Qqhh" if wide else ">Iihh")
+
+
+boxes.DECODERS["elst"] = lambda data, box: {"version": boxes.read_fullbox(data, box)[0],
+                                            "entries": read_elst(data, box)}
 
 
 @dataclass

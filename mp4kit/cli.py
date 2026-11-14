@@ -104,7 +104,8 @@ def cmd_dump(args):
 def cmd_samples(args):
     """`samples FILE [--track N] [--pts]`: print a track's sample table, one sample a line, its columns in lookup
     order: decode time (stts), keyframe (stss), offset (stsc + stco), size (stsz). Tracks count from 1 in file order.
-    `--pts` adds, after dts, the composition time (stts + ctts) and each sample's place in display order."""
+    `--pts` prints dts and pts on the movie's timeline (ctts and the edit list applied, as ffprobe prints them)
+    and each sample's place in display order."""
     from . import boxes, tables
     data = boxes.read_mp4(args.file)
     traks = boxes.find_all(boxes.walk(data), "moov/trak")
@@ -116,16 +117,25 @@ def cmd_samples(args):
     timescale = tables.read_mdhd(data, boxes.find(trak.children, "mdia/mdhd"))["timescale"]
     samples = tables.sample_table(data, trak)
     print(f"track {args.track} {handler}, timescale {timescale}, {len(samples)} samples")
-    print("sample dts cts display key offset size" if args.pts else "sample dts key offset size")
-    for s, times in zip(samples, _time_columns(samples, args.pts)):
+    print("sample dts pts display key offset size" if args.pts else "sample dts key offset size")
+    for s, times in zip(samples, _time_columns(data, trak, samples, args.pts)):
         print(s.number, *times, "K" if s.key else "-", s.offset, s.size)
     return 0
 
 
-def _time_columns(samples, pts):
-    """Each sample's time columns: its dts; with `--pts` also its cts and its place in display order (by cts)."""
+def _time_columns(data, trak, samples, pts):
+    """Each sample's time columns: its dts; with `--pts` its dts and pts with the edit list applied to both (Do Cats
+    Purr: DTS, CTS, PTS), and its place in display order (by cts)."""
+    if not pts:
+        return [(s.dts,) for s in samples]
+    from . import boxes, tables, timing
+    elst = tables.read_elst(data, boxes.find(trak.children, "edts/elst"))
+    clocks = (tables.read_mdhd(data, boxes.find(trak.children, "mdia/mdhd"))["timescale"],
+              tables.read_mvhd(data, boxes.find(boxes.walk(data), "moov/mvhd"))["timescale"])
+    dts = timing.presentation_times([s.dts for s in samples], elst, *clocks)
+    pts = timing.presentation_times([s.cts for s in samples], elst, *clocks)
     shown = {s.number: place for place, s in enumerate(sorted(samples, key=lambda s: s.cts), 1)}
-    return [(s.dts, s.cts, shown[s.number]) if pts else (s.dts,) for s in samples]
+    return [(d, p, shown[s.number]) for s, d, p in zip(samples, dts, pts)]
 
 
 def _show(value):
@@ -211,7 +221,7 @@ def _add_samples(sub):
     s = sub.add_parser("samples", help="print a track's sample table")
     s.add_argument("file", help="the MP4 file to read")
     s.add_argument("--track", type=int, default=1, help="which track, counted from 1 in file order (default 1)")
-    s.add_argument("--pts", action="store_true", help="add the composition time (cts) and the display order")
+    s.add_argument("--pts", action="store_true", help="dts and pts with the edit list applied, and the display order")
     s.set_defaults(func=cmd_samples)
 
 

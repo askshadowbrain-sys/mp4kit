@@ -127,10 +127,13 @@ class Ep17(unittest.TestCase):
                          "(1, 33), (1, 99), (2, 0), (1, 33), (1, 99), (2, 0)]\n")
 
     def test_cmd_samples_f2_pts(self):
+        # ep18 applies the edit list to --pts: dts and pts on the movie's timeline; tag ep17 keeps its own test
         printed = run_cli("samples", "testfiles/out/f2.mp4", "--pts")
-        self.assertEqual(printed, EXPECTED.read_text())
         lines = printed.splitlines()
         self.assertEqual(lines[:4], ["track 1 vide, timescale 1000, 12 samples",
-                                     "sample dts cts display key offset size",
-                                     "1 0 33 1 K 40 5589", "2 33 132 4 - 5629 311"])
+                                     "sample dts pts display key offset size",
+                                     "1 -33 0 1 K 40 5589", "2 0 99 4 - 5629 311"])
+        at_ep17 = [line.split() for line in EXPECTED.read_text().splitlines()[2:]]   # dts and cts, no edit list
+        self.assertEqual(lines[2:], [" ".join([n, str(int(d) - 33), str(int(c) - 33), *rest])     # f2's media_time 33
+                                     for n, d, c, *rest in at_ep17])
         self.assertEqual(run_cli("samples", "testfiles/out/f2.mp4").splitlines()[1], "sample dts key offset size")

@@ -29,6 +29,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep15 | tables.py +53/-1 | 29 | ~16 | `tables.read_stsz` 9 (12), `tables.chunk_sizes` 5 (8), `tables._stsc_fields` 4 (7), `tables.read_stco` 2 (5), `tables.read_stsc` 1 (4); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 | ep16 | cli.py +29/-1, tables.py +44/-1 | 50 | ~30 | `tables.sample_table` 15 (20), at the limit, `cli.cmd_samples` 14 (17), `tables._check_counts` 3 (5), `cli._add_samples` 4 (6); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 | ep17 | cli.py +13/-5, nal.py +23/-2, tables.py +32/-5, timing.py +9/-1 | 41 | ~21 | `nal.access_units` 11 (15), `tables._clocks` 7 (10), `tables.read_ctts` 4 (8), `timing.composition_times` 2 (5), `cli._time_columns` 2 (4); `nal.read_slice_header` 13 (16) with its POC branch; `tables.sample_table` 15 (20) and `cli.cmd_samples` 14 (18) keep their ep16 bodies; `boxes.read_header`, `tables.read_mvhd`, `cli.cmd_dump` and `tables.sample_table` 15 overall |
+| ep18 | cli.py +17/-7, tables.py +17/-1, timing.py +15/-1 | 27 | ~14 | `cli._time_columns` 10 (13), `timing.presentation_times` 6 (11), `tables.read_elst` 4 (9); `cli.cmd_samples` 14 (19) keeps its ep16 body (its docstring is a line longer); `boxes.read_header`, `tables.read_mvhd`, `cli.cmd_dump` and `tables.sample_table` 15 overall |
 
 ## Functions over 15 lines
 
@@ -299,4 +300,34 @@ arithmetic became `picture_size`, so its body is 12 lines.
     (CT = DT + offset); `sample_table`'s one changed line; `access_units`; the POC branch.
   - **On-screen trim:** show `_clocks`'s count check, the `ctts` decoder, `_time_columns` and the argparse line as
     finished code (ep10's pattern); type the rest (about 25 lines).
+- **ep18 (27, plan ~14).** The plan's two names come to 12 code lines: `read_elst` 5 (`>Iihh` for version 0,
+  `>Qqhh` for version 1: media_time and the rate halves are signed, so an empty edit's `ff ff ff ff` reads −1) and
+  `presentation_times` 7. The extra 15:
+  - `--pts` applying the edit list in `cli` (13; plan 4.1: "applies the edit list (18)"): `_time_columns` now
+    takes the trak, reads its elst and the two clocks (mdhd and mvhd: the timer's length is in the movie's clock)
+    and runs `presentation_times` over dts and over cts (10 body lines + its `def`); `cmd_samples` changes 2 lines
+    (the header and the call); the `--pts` help text 1. `cmd_samples`'s body stays at its ep16 length (14).
+  - the `elst` decoder for `dump` (2): `dump phone.mp4 --find elst` prints `version=0 entries=[(96000, 1024, 1,
+    0)]` for each track.
+  - **`--pts` prints** `sample dts pts display key offset size`: dts and pts with the edit list applied to both
+    clocks, which are ffprobe's dts and pts exactly (phone: `1 -1024 0 1 K 48 5824`). The cts column of ep17 is
+    replaced by pts: the edit list moves the whole track, so a dts left unmoved next to a moved pts would mix two
+    timelines, and the plan's command row asks for "first DTS −1024, PTS 0". cts stays in `Sample.cts`.
+    Without `--pts` the output is ep16's, byte for byte.
+  - **One earlier test changed:** test_ep17 `test_cmd_samples_f2_pts` compared `samples f2.mp4 --pts` with
+    expected/ep17.txt; it now asserts the ep18 header `sample dts pts display key offset size` and that each line
+    is ep17's line with dts and cts lowered by f2's media_time 33 (`1 -33 0 1 K 40 5589`). Tag ep17 keeps its own
+    test and its expected file (check.sh runs each tag's own).
+  - **Shapes no committed file carries** (all 21 elst boxes are version 0 with one entry and media_rate 1; f1 and
+    frag-cmaf have no edts): version 1, empty edits (media_time −1), several entries and media_rate 0 are tested
+    on hand-packed boxes. The empty-edit bytes are those of phone.mp4 re-muxed with `-itsoffset 0.25`, whose
+    ffprobe pts the test's numbers match (captures ep18).
+  - **Not done here:** samples outside the edit's window are kept (ffprobe drops subs track 3's 4th sample, which
+    starts at the edit's end, 91,200 movie ticks = 1,900,000 track ticks); only the first media edit moves the
+    track (later edits would cut or repeat media); media_rate is read but not applied (a dwell, rate 0, holds one
+    picture). Empty-edit time is converted with floor division (every case here divides exactly).
+  - **Blocks the Build-it scene shows:** `read_elst` (version 0 vs 1); `presentation_times`; the two lines of
+    `_time_columns` that call it.
+  - **On-screen trim:** show the `elst` decoder, the clock lookups in `_time_columns` and the argparse line as
+    finished code (ep10's pattern); type the rest (about 18 lines).
 - ep01–ep03 are 6–10 lines over their estimates.
