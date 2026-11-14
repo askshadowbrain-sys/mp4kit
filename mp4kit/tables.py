@@ -3,7 +3,8 @@ Episode 12: mdhd and hdlr, a track's own clock and its door sign. Episode 13: st
 tray, its video instruction sheets (avc1) and their avcC. Episode 14: the generic table, and drawers 1 and 2,
 stts (When?) and stss (Where can I start?). Episode 15: drawers 3 to 5, stsc (Which chunk?), stco (Where does it
 start?) and stsz (How big is each sample?). Episode 16: the five lookups as code, every sample of a track
-from its five drawers (Sample, sample_table)."""
+from its five drawers (Sample, sample_table). Episode 17: ctts, the second-clock slip in the time drawer: each
+sample's composition time, its decode time plus the slip (read_ctts)."""
 import struct
 from dataclasses import dataclass
 
@@ -251,6 +252,20 @@ boxes.DECODERS["stco"] = boxes.DECODERS["co64"] = lambda data, box: {"chunk_offs
 boxes.DECODERS["stsz"] = lambda data, box: {"entry_size": read_stsz(data, box)}
 
 
+def read_ctts(data, box):
+    """The second-clock slip in drawer 1: runs of (sample_count, sample_offset), so many samples in a row whose
+    composition time is their decode time plus sample_offset ticks. It stores only the difference. Version 0
+    reads it unsigned, version 1 signed (it can be negative). No ctts box: no slips, so this gives []."""
+    if box is None:
+        return []
+    signed = boxes.read_fullbox(data, box)[0] == 1
+    return read_table(data, box, ">Ii" if signed else ">II")
+
+
+boxes.DECODERS["ctts"] = lambda data, box: {"version": boxes.read_fullbox(data, box)[0],
+                                            "entries": read_ctts(data, box)}
+
+
 @dataclass
 class Sample:
     """One sample, as the five drawers give it: its number (from 1), its decode time (dts) and composition time
@@ -270,13 +285,25 @@ def _check_counts(stbl, stts_count, stsc_count, stsz_count):
                              f"stsz {stsz_count}")
 
 
+def _clocks(data, stbl):
+    """Drawer 1 and its slip: each sample's decode time (stts), and its composition time (stts + ctts). Do Cats
+    Purr: DTS, then CTS. A ctts that covers a different number of samples than stts raises BoxError."""
+    dts = timing.decode_times(read_stts(data, boxes.find(stbl.children, "stts")))
+    ctts_box = boxes.find(stbl.children, "ctts")
+    ctts = read_ctts(data, ctts_box)
+    count = sum(sample_count for sample_count, _ in ctts)
+    if ctts and count != len(dts):
+        raise boxes.BoxError(f"ctts at {ctts_box.start}: ctts has {count} samples, stts {len(dts)}")
+    return dts, timing.composition_times(dts, ctts)
+
+
 def sample_table(data, trak):
     """Every sample of a track, each drawer of its stbl unrolled once, in lookup order: stts (When?), stss (Where
     can I start?), stsc (Which chunk?), stco (Where does it start?), stsz (How big?). Tired Sailors Carry Oars
-    Slowly. A sample's offset is its chunk's offset plus the sizes of the samples before it in that chunk. No ctts
-    is read yet (episode 17), so cts = dts."""
+    Slowly. A sample's offset is its chunk's offset plus the sizes of the samples before it in that chunk. Its cts
+    is its dts plus its ctts slip (episode 17); a track with no ctts has cts = dts."""
     stbl = boxes.find(trak.children, "mdia/minf/stbl")
-    times = timing.decode_times(read_stts(data, boxes.find(stbl.children, "stts")))
+    times, cts = _clocks(data, stbl)
     sync = read_stss(data, boxes.find(stbl.children, "stss"))
     stsc = read_stsc(data, boxes.find(stbl.children, "stsc"))
     offsets = read_stco(data, boxes.find(stbl.children, "stco") or boxes.find(stbl.children, "co64"))
@@ -287,6 +314,6 @@ def sample_table(data, trak):
     for offset, count in zip(offsets, per_chunk):
         for _ in range(count):
             n = len(samples) + 1
-            samples.append(Sample(n, times[n - 1], times[n - 1], sizes[n - 1], offset, sync is None or n in sync))
+            samples.append(Sample(n, times[n - 1], cts[n - 1], sizes[n - 1], offset, sync is None or n in sync))
             offset = offset + sizes[n - 1]
     return samples

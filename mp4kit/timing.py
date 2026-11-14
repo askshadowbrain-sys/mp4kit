@@ -1,4 +1,5 @@
-"""Time in an MP4. Episode 10: ticks and seconds. Episode 14: decode times from stts."""
+"""Time in an MP4. Episode 10: ticks and seconds. Episode 14: decode times from stts. Episode 17: composition
+times, decode time plus the ctts slip (DTS → CTS → PTS: Do Cats Purr)."""
 
 
 def seconds(ticks, timescale):
@@ -16,3 +17,10 @@ def decode_times(stts):
             times.append(t)
             t = t + sample_delta
     return times
+
+
+def composition_times(dts, ctts):
+    """Each sample's composition time in ticks: its decode time plus its slip from ctts's runs of (sample_count,
+    sample_offset). CT = DT + offset. No ctts (an empty list): every slip is 0, so CT = DT."""
+    offsets = [sample_offset for sample_count, sample_offset in ctts for _ in range(sample_count)]
+    return [t + offset for t, offset in zip(dts, offsets or [0] * len(dts))]

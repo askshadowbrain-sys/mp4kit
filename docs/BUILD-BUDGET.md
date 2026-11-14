@@ -28,6 +28,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep14 | tables.py +31/-1, timing.py +13/-1 | 23 | ~15 | `timing.decode_times` 7 (10), `tables.read_table` 6 (9), `tables.read_stss` 3 (6), `tables.read_stts` 1 (4); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 | ep15 | tables.py +53/-1 | 29 | ~16 | `tables.read_stsz` 9 (12), `tables.chunk_sizes` 5 (8), `tables._stsc_fields` 4 (7), `tables.read_stco` 2 (5), `tables.read_stsc` 1 (4); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 | ep16 | cli.py +29/-1, tables.py +44/-1 | 50 | ~30 | `tables.sample_table` 15 (20), at the limit, `cli.cmd_samples` 14 (17), `tables._check_counts` 3 (5), `cli._add_samples` 4 (6); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
+| ep17 | cli.py +13/-5, nal.py +23/-2, tables.py +32/-5, timing.py +9/-1 | 41 | ~21 | `nal.access_units` 11 (15), `tables._clocks` 7 (10), `tables.read_ctts` 4 (8), `timing.composition_times` 2 (5), `cli._time_columns` 2 (4); `nal.read_slice_header` 13 (16) with its POC branch; `tables.sample_table` 15 (20) and `cli.cmd_samples` 14 (18) keep their ep16 bodies; `boxes.read_header`, `tables.read_mvhd`, `cli.cmd_dump` and `tables.sample_table` 15 overall |
 
 ## Functions over 15 lines
 
@@ -265,4 +266,37 @@ arithmetic became `picture_size`, so its body is 12 lines.
     `cmd_samples`'s header and the row print.
   - **On-screen trim:** show `_check_counts`, its call, `cmd_samples`'s track check and `_add_samples` as finished
     code (ep10's pattern); type the rest (about 30 lines).
+- **ep17 (41, plan ~21).** The plan's names come to 29 code lines: `read_ctts` 5, `composition_times` 3,
+  `access_units` 12 (H.264 7.4.1.2.3 needs two rules, "an AUD, SPS, PPS or SEI after a slice" and "a
+  slice with first_mb_in_slice 0 after a slice", and the has-slice flag that tells them apart), the POC branch in
+  `read_slice_header` 2 (section 4.1), and `--pts` in `cmd_samples` 7 (3 changed lines: the header choice and the
+  print loop; the `_time_columns` helper 3; the `add_argument` line 1). The extra 12:
+  - `_clocks` (8) and its call in `sample_table` (1 changed line), plus the `cts[n - 1]` change (1): stts and ctts
+    read together, so that `sample_table`'s body stays at 15 lines, and a ctts that covers a different number of
+    samples than stts raises `BoxError` with ctts's offset (design rule 4): f2 with its last run's sample_count 2
+    changed to 1 (byte 21490): `ctts at 21407: ctts has 11 samples, stts 12`. Without it, `composition_times`'s
+    `zip` stops early, so a short ctts makes `sample_table` raise a bare `IndexError` and a long one is cut silently.
+  - the `ctts` decoder for `dump` (2): `dump f2.mp4 --find ctts` prints `version=0 entries=[(1, 33), (1, 99),
+    (2, 0), ...]`, the slip runs the xxd scene shows.
+  - `_time_columns` is its own helper so that `cmd_samples`'s body stays at its ep16 length (14).
+  - **`--pts` prints** `sample dts cts display key offset size`: cts right after dts (Do Cats Purr: DTS → CTS),
+    then the sample's place in display order (by cts). Without `--pts` the output is ep16's, byte for byte
+    (expected/ep16.txt still passes).
+  - **cts is not ffprobe's pts:** ffprobe applies the edit list, so on every track its pts = our cts − the same
+    shift as its dts (33 on f2; 1024 on phone and the other ffmpeg files; 0 on f1, av1 and subs track 3). Episode 18
+    (`read_elst`, `presentation_times`) applies it; at this tag the test compares pts + shift.
+  - **ctts version 1:** no committed file has one (all eleven ctts boxes are version 0), so the signed read is
+    tested on a hand-packed box (design rule, section 5): rows (1, 0), (1, 66), (2, −33); the same bytes stamped
+    version 0 read −33 as 4,294,967,263.
+  - **One earlier test changed:** test_ep16 `test_sample_table_phone` asserted cts = dts on phone's video (its
+    comment said "ctts is episode 17"); it now asserts phone video's cts 1024 and 2560 for samples 1 and 2, and
+    cts = dts on audio only. Tag ep16 keeps its own test.
+  - **Not done here:** no edit list (18); no command uses `access_units` yet (its test groups f1's Annex B
+    stream from episode 5); POC types 1 and 2 are not decoded (f1 is type 2, so its slices carry no
+    pic_order_cnt_lsb; phone and f2 are type 0); POC wrap-around beyond log2_max_poc_lsb is not handled (phone's
+    GOP of 30 frames reaches POC 58 < 64).
+  - **Blocks the Build-it scene shows:** `read_ctts` (version 0 vs 1: `>II` or `>Ii`); `composition_times`
+    (CT = DT + offset); `sample_table`'s one changed line; `access_units`; the POC branch.
+  - **On-screen trim:** show `_clocks`'s count check, the `ctts` decoder, `_time_columns` and the argparse line as
+    finished code (ep10's pattern); type the rest (about 25 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

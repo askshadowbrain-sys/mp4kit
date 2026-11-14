@@ -42,13 +42,13 @@ class Ep16(unittest.TestCase):
     def test_sample_table_phone(self):
         video, audio = tables_of(PHONE)
         self.assertEqual((len(video), len(audio)), (60, 95))
-        self.assertEqual(video[0], tables.Sample(1, 0, 0, 5824, 48, True))
-        self.assertEqual(video[1], tables.Sample(2, 512, 512, 2139, 5872, False))              # 48 + 5824
+        self.assertEqual(video[0], tables.Sample(1, 0, 1024, 5824, 48, True))               # cts from ctts (ep17)
+        self.assertEqual(video[1], tables.Sample(2, 512, 2560, 2139, 5872, False))             # 48 + 5824
         self.assertEqual(video[2].offset, 8249)                                              # chunk 2: stco
         self.assertEqual([s.number for s in video if s.key], [1, 31])
         self.assertEqual((audio[0].offset, audio[0].size, audio[0].dts), (8011, 238, 0))
         self.assertTrue(all(s.key for s in audio))                                           # no stss in audio
-        self.assertTrue(all(s.cts == s.dts for s in video + audio))                          # ctts is episode 17
+        self.assertTrue(all(s.cts == s.dts for s in audio))                                  # audio has no ctts
 
     def test_matches_ffprobe(self):
         for f in sorted(OUT.glob("*.mp4")) + sorted(OUT.glob("*.m4a")):

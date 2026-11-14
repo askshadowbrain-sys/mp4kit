@@ -1,6 +1,7 @@
 """H.264 elementary stream. Episode 2: length labels in mdat. Episode 3: NAL header, types, bit reader.
 Episode 4: SPS, PPS, picture size, slice headers.
-Episode 5: Annex B start codes, AVCC length labels, emulation prevention (rbsp)."""
+Episode 5: Annex B start codes, AVCC length labels, emulation prevention (rbsp).
+Episode 17: access units (one picture's NAL units), and the slice header's picture order count."""
 
 
 def iter_length_prefixed(data, start, end, length_size=4):
@@ -173,7 +174,8 @@ def parse_pps(nal):
 
 
 def read_slice_header(nal, sps, pps):
-    """Read the start of a slice header (H.264 7.3.3), up to idr_pic_id."""
+    """Read the start of a slice header (H.264 7.3.3), up to idr_pic_id, then pic_order_cnt_lsb when the SPS's
+    pic_order_cnt_type is 0: the picture's place in display order (episode 17)."""
     if sps["frame_mbs_only"] == 0:
         raise ValueError("field coding not taught")
     if sps["separate_colour_plane"]:
@@ -184,7 +186,26 @@ def read_slice_header(nal, sps, pps):
     h["frame_num"] = r.u(sps["log2_max_frame_num"])
     if nal_unit_type == 5:
         h["idr_pic_id"] = r.ue()
+    if sps["pic_order_cnt_type"] == 0:
+        h["pic_order_cnt_lsb"] = r.u(sps["log2_max_poc_lsb"])
     return h
+
+
+def access_units(nals):
+    """Group NAL units into access units, one picture each (H.264 7.4.1.2.3). After a unit's first slice, an AUD,
+    SPS, PPS or SEI opens the next unit, and so does a slice whose first_mb_in_slice is 0 (ue 0 is the single bit
+    1, so the first bit after the header byte is 1)."""
+    units = []
+    has_slice = False
+    for unit in nals:
+        nal_unit_type = nal_header(unit[0])[2]
+        new_picture = nal_unit_type in (6, 7, 8, 9) or (nal_unit_type in (1, 5) and unit[1] & 0x80)
+        if not units or (has_slice and new_picture):
+            units.append([])
+            has_slice = False
+        units[-1].append(unit)
+        has_slice = has_slice or nal_unit_type in (1, 5)
+    return units
 
 
 def _read_param_sets(data, at, count):
