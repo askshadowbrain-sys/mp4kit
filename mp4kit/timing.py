@@ -1,6 +1,6 @@
 """Time in an MP4. Episode 10: ticks and seconds. Episode 14: decode times from stts. Episode 17: composition
 times, decode time plus the ctts slip (DTS → CTS → PTS: Do Cats Purr). Episode 18: presentation times, the edit
-list applied."""
+list applied. Episode 19: the sample on screen at a time, and the keyframe it is decoded from."""
 
 
 def seconds(ticks, timescale):
@@ -38,3 +38,23 @@ def presentation_times(cts, elst, media_timescale, movie_timescale):
             return [t - media_time + start for t in cts]
         start = start + segment_duration * media_timescale // movie_timescale
     return [t + start for t in cts]
+
+
+def sample_at(pts, t_ticks):
+    """The sample on screen at `t_ticks` (the track's ticks, on the presentation timeline): of the samples shown at
+    or before t, the one shown last. It stays on screen until the next one shows. Samples count from 1."""
+    shown = [(p, n) for n, p in enumerate(pts, 1) if p <= t_ticks]
+    if not shown:
+        raise ValueError(f"nothing is on screen at {t_ticks} ticks: the first picture shows at {min(pts)}")
+    return max(shown)[1]
+
+
+def sync_before(stss, n):
+    """Where decoding sample `n` must start: the last sync sample (keyframe) at or before it. A picture can need
+    earlier parcels, so walk back to the keyframe. No stss (None): every sample is a sync sample."""
+    if stss is None:
+        return n
+    before = [k for k in stss if k <= n]
+    if not before:
+        raise ValueError(f"no sync sample at or before sample {n} (stss starts at {stss[0]})")
+    return max(before)

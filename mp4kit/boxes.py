@@ -1,4 +1,6 @@
 """Box reader core: big-endian numbers and box headers."""
+import mmap
+import os
 import struct
 from dataclasses import dataclass, field
 
@@ -136,6 +138,10 @@ def find_all(tree, path):
 
 
 def read_mp4(path):
-    """The file's bytes (episode 19 switches this to mmap)."""
+    """The file, mapped into memory (mmap) rather than read: a lookup touches only the pages it reads, so one frame
+    of a 2 GB file costs the moov and that frame's parcels, not 2 GB. Slices of it are bytes. An empty file cannot
+    be mapped, so it gives b"" (episode 19; before, the file's bytes)."""
     with open(path, "rb") as f:
-        return f.read()
+        if os.fstat(f.fileno()).st_size == 0:
+            return b""
+        return mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)

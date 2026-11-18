@@ -1,5 +1,6 @@
 """The mp4kit command line: one cmd_* per subcommand."""
 import argparse
+from pathlib import Path
 from typing import Optional
 
 
@@ -138,6 +139,70 @@ def _time_columns(data, trak, samples, pts):
     return [(d, p, shown[s.number]) for s, d, p in zip(samples, dts, pts)]
 
 
+def cmd_frame(args):
+    """`frame FILE --at MS [--out FRAME.h264]`: the whole route, front door to parcel. In the first video track,
+    find the sample on screen at --at milliseconds (sample_at, on the presentation timeline), walk back to the
+    keyframe it is decoded from (sync_before), and with --out write SPS + PPS + the samples from that keyframe to
+    it, in decode order, as an Annex B stream a decoder can play."""
+    from . import boxes, timing
+    data = boxes.read_mp4(args.file)
+    try:
+        trak, samples, pts, t = _frame_route(data, args.at)
+        n = timing.sample_at(pts, t)
+        key = timing.sync_before([s.number for s in samples if s.key], n)
+        stream = _annexb_samples(data, trak, samples[key - 1:n]) if args.out else b""
+    except (boxes.BoxError, ValueError) as e:
+        print(f"error: {e}")
+        return 1
+    _print_route(args.at, t, samples, pts, key, n)
+    if args.out:
+        Path(args.out).write_bytes(stream)
+        print(f"wrote SPS, PPS and samples {key} to {n} as Annex B, {len(stream)} bytes")
+    return 0
+
+
+def _print_route(at_ms, t, samples, pts, key, n):
+    """The route as two lines: the sample on screen at the time, where it lies, and the walk back to its keyframe;
+    the decoder shows the pictures in display order, so say which of them the target is."""
+    s, shown = samples[n - 1], sum(p <= pts[n - 1] for p in pts[key - 1:n])
+    print(f"{at_ms} ms = {t} ticks: on screen is sample {n} (pts {pts[n - 1]}, offset {s.offset}, {s.size} bytes)")
+    print(f"walk back to keyframe {key}: decode samples {key} to {n}; sample {n} is picture {shown} of "
+          f"{n - key + 1} in display order")
+
+
+def _frame_route(data, at_ms):
+    """Front door to time drawer: the first video track, its samples, their presentation times (the edit list
+    applied), and --at in the track's ticks. No moov: the file was cut before it was written."""
+    from . import boxes, tables
+    tree = boxes.walk(data)
+    if boxes.find(tree, "moov") is None:
+        raise ValueError("no moov box (moov atom not found): the file is truncated")
+    video = [t for t in boxes.find_all(tree, "moov/trak")
+             if tables.read_hdlr(data, boxes.find(t.children, "mdia/hdlr"))["handler_type"] == "vide"]
+    if not video:
+        raise ValueError("no video track")
+    mvhd = tables.read_mvhd(data, boxes.find(tree, "moov/mvhd"))
+    if not 0 <= at_ms * mvhd["timescale"] < mvhd["duration"] * 1000:
+        raise ValueError(f"--at {at_ms} ms is outside the movie, which lasts {mvhd['seconds'] * 1000:g} ms")
+    samples = tables.sample_table(data, video[0])
+    pts = [p for _, p, _ in _time_columns(data, video[0], samples, True)]
+    timescale = tables.read_mdhd(data, boxes.find(video[0].children, "mdia/mdhd"))["timescale"]
+    return video[0], samples, pts, at_ms * timescale // 1000
+
+
+def _annexb_samples(data, trak, samples):
+    """The parcels as a decoder wants them: SPS and PPS from avcC, then each sample's NAL units with their length
+    labels swapped for start codes (Annex B, episode 5)."""
+    from . import boxes, nal, tables
+    avcc = boxes.find(trak.children, "mdia/minf/stbl/stsd/avc1/avcC")
+    if avcc is None:
+        raise ValueError("--out writes H.264 only, and this track has no avc1/avcC")
+    config = tables.read_avcc(data, avcc)
+    size = config["lengthSizeMinusOne"] + 1
+    units = [u for s in samples for _, u in nal.iter_length_prefixed(data, s.offset, s.offset + s.size, size)]
+    return nal.to_annexb(config["SPS"] + config["PPS"] + units)
+
+
 def _show(value):
     """A field as dump prints it: bytes as hex digits (in a list too), anything else as Python prints it."""
     if isinstance(value, list):
@@ -225,11 +290,21 @@ def _add_samples(sub):
     s.set_defaults(func=cmd_samples)
 
 
+def _add_frame(sub):
+    """Register the `frame` command."""
+    f = sub.add_parser("frame", help="find the frame on screen at a time, and extract it")
+    f.add_argument("file", help="the MP4 file to read")
+    f.add_argument("--at", type=int, required=True, help="the time, in milliseconds from the start of the movie")
+    f.add_argument("--out", help="write the keyframe-to-frame samples here as an Annex B .h264 stream")
+    f.set_defaults(func=cmd_frame)
+
+
 def main(argv: Optional[list] = None) -> int:
     """Parse the command line and run the chosen subcommand."""
     p = argparse.ArgumentParser(prog="mp4kit")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes, _add_dump, _add_samples):
+    for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes, _add_dump, _add_samples,
+                _add_frame):
         add(sub)
     args = p.parse_args(argv)
     return args.func(args)

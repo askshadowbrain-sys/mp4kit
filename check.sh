@@ -26,6 +26,7 @@ cmd_for() {
     ep16) echo 'python3 -m mp4kit samples testfiles/out/phone.mp4 --track 1' ;;
     ep17) echo 'python3 -m mp4kit samples testfiles/out/f2.mp4 --pts' ;;
     ep18) echo 'python3 -m mp4kit samples testfiles/out/phone.mp4 --track 1 --pts' ;;
+    ep19) echo 'python3 -m mp4kit frame testfiles/out/f2.mp4 --at 198 --out "$TMPOUT/frame.h264"' ;;
     *) return 1 ;;
   esac
 }

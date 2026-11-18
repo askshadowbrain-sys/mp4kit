@@ -30,6 +30,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep16 | cli.py +29/-1, tables.py +44/-1 | 50 | ~30 | `tables.sample_table` 15 (20), at the limit, `cli.cmd_samples` 14 (17), `tables._check_counts` 3 (5), `cli._add_samples` 4 (6); `boxes.read_header`, `tables.read_mvhd` and `cli.cmd_dump` 15 overall |
 | ep17 | cli.py +13/-5, nal.py +23/-2, tables.py +32/-5, timing.py +9/-1 | 41 | ~21 | `nal.access_units` 11 (15), `tables._clocks` 7 (10), `tables.read_ctts` 4 (8), `timing.composition_times` 2 (5), `cli._time_columns` 2 (4); `nal.read_slice_header` 13 (16) with its POC branch; `tables.sample_table` 15 (20) and `cli.cmd_samples` 14 (18) keep their ep16 bodies; `boxes.read_header`, `tables.read_mvhd`, `cli.cmd_dump` and `tables.sample_table` 15 overall |
 | ep18 | cli.py +17/-7, tables.py +17/-1, timing.py +15/-1 | 27 | ~14 | `cli._time_columns` 10 (13), `timing.presentation_times` 6 (11), `tables.read_elst` 4 (9); `cli.cmd_samples` 14 (19) keeps its ep16 body (its docstring is a line longer); `boxes.read_header`, `tables.read_mvhd`, `cli.cmd_dump` and `tables.sample_table` 15 overall |
+| ep19 (finale) | boxes.py +8/-2, cli.py +76/-1, timing.py +21/-1 | 72 | ~25 (finale ≤ ~90) | `cli.cmd_frame` 15 (21) and `cli._frame_route` 15 (18), both at the limit, `cli._annexb_samples` 8 (11), `timing.sync_before` 6 (9), `timing.sample_at` 4 (7), `cli._print_route` 4 (7), `boxes.read_mp4` 4 (8); `boxes.read_header`, `tables.read_mvhd`, `cli.cmd_dump` and `tables.sample_table` 15 overall |
 
 ## Functions over 15 lines
 
@@ -330,4 +331,36 @@ arithmetic became `picture_size`, so its body is 12 lines.
     `_time_columns` that call it.
   - **On-screen trim:** show the `elst` decoder, the clock lookups in `_time_columns` and the argparse line as
     finished code (ep10's pattern); type the rest (about 18 lines).
+- **ep19 (72, plan ~25; a finale, inside its ≤ ~90).** The plan's three names come to 36 code lines:
+  `sample_at` 5, `sync_before` 7 and `cmd_frame` 16 plus `_add_frame` 6 and its entry in `main`'s tuple 2 (the
+  `for add in` line is rewrapped). The extra 36:
+  - `_frame_route` (16): front door to time drawer, the first `vide` track, its samples and their PTS (it calls
+    ep18's `_time_columns`, so `--at` is read on the same timeline `samples --pts` prints and ffprobe uses), and
+    `--at` converted from milliseconds to the track's ticks (`at * timescale // 1000`: f2 198 → 198, phone 1000 →
+    15,360). Its two checks: no moov (broken-nomoov: `error: no moov box (moov atom not found): the file is
+    truncated`, exit 1, the plan's message; "moov atom not found" is ffprobe's own words) and a time outside the
+    movie (mvhd's duration: `--at 396` on f2, `error: --at 396 ms is outside the movie, which lasts 396 ms`).
+    Split out of `cmd_frame` to keep its body at 15.
+  - `_annexb_samples` (9): `--out`'s stream, SPS and PPS from avcC (ep13's `read_avcc`), then every NAL unit of
+    samples keyframe..target with its length label (lengthSizeMinusOne + 1 bytes) swapped for a start code
+    (ep05's `to_annexb`). A track with no avc1/avcC (hevc, av1) is refused: `--out writes H.264 only`.
+  - `_print_route` (5): the two route lines, including which picture of the decoded run the target is: a
+    decoder shows them in display order, so for f2 at 198 the 4 decoded samples 5–8 show as 132, 165, 198, 231
+    and the target is picture 3.
+  - `boxes.read_mp4` maps the file (plan 4.1: "returns an `mmap`") (5 with `import mmap`, `import os`): an empty
+    file cannot be mapped, so it gives `b""`. `cli` imports `Path` (1) for the one-line write.
+  - **`--at` is milliseconds** (plan section 3: `frame <file> --at <ms>`), converted to the track's ticks and
+    looked up on the presentation timeline (PTS, the edit list applied). f2's clock is 1000, so its ms are its
+    ticks: 198 → sample 8 (PTS 198, shown 7th). Read as raw CTS or raw DTS (no edit list) 198 is sample 7, one
+    picture early (test `test_sample_at_needs_pts`); phone (15,360) tells ms from ticks: 1000 ms → sample 31.
+  - **One earlier test changed:** test_ep09 `test_read_mp4` compared `read_mp4` with the file's bytes; an mmap
+    does not compare equal to bytes, so it compares `bytes(read_mp4(...))`. Tag ep09 keeps its own test.
+  - **Not done here:** a damaged table is not detected (broken-stco's sample 1 offset is 1,000 bytes off, so
+    `--out` would cut the wrong bytes; `check`, episode 36); fragmented files have no samples in moov (frag-cmaf:
+    mvhd duration 0, `outside the movie, which lasts 0 ms`; episode 31); only the first video track; the frame
+    is written as an Annex B stream, not decoded to pixels (a decoder does that: `ffmpeg -i frame.h264`).
+  - **Blocks the Build-it scene shows:** `sample_at` (the last picture shown at or before t); `sync_before` (the
+    last keyframe at or before n); `cmd_frame`'s three lookups inside its `try`; `_annexb_samples`.
+  - **On-screen trim:** show `_frame_route`'s two checks, `_print_route`, `read_mp4`'s mmap and `_add_frame` as
+    finished code (ep10's pattern); type the rest (about 35 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

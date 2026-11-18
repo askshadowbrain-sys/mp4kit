@@ -46,7 +46,8 @@ class Ep09(unittest.TestCase):
                                               "av01": 78, "encv": 78, "mp4a": 28, "enca": 28})
 
     def test_read_mp4(self):
-        self.assertEqual(boxes.read_mp4(OUT / "f1.mp4"), data("f1.mp4"))
+        # ep19 maps the file (mmap) instead of reading it: the same bytes; tag ep09 keeps its own test
+        self.assertEqual(bytes(boxes.read_mp4(OUT / "f1.mp4")), data("f1.mp4"))
 
     def test_child_overrunning_parent_raises(self):
         blob = bytearray(PHONE)

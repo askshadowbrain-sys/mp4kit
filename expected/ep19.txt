@@ -1,0 +1,3 @@
+198 ms = 198 ticks: on screen is sample 8 (pts 198, offset 13297, 180 bytes)
+walk back to keyframe 5: decode samples 5 to 8; sample 8 is picture 3 of 4 in display order
+wrote SPS, PPS and samples 5 to 8 as Annex B, 7331 bytes
