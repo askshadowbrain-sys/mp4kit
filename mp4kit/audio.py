@@ -1,5 +1,7 @@
 """Sound. Episode 20: PCM arithmetic (how many bytes raw sound takes), AAC's frame of 1,024 samples, and ADTS,
-the 7-byte header that lets AAC frames travel without an MP4 around them."""
+the 7-byte header that lets AAC frames travel without an MP4 around them. Episode 21: esds, the sheet in the
+sound corridor's tray, in nested envelopes (descriptors), and the AudioSpecificConfig inside the last one."""
+from . import boxes
 
 # AAC's sample rates, by the 4-bit index that ADTS and the AudioSpecificConfig store (3 is 48,000, 4 is 44,100)
 SAMPLE_RATES = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350]
@@ -40,3 +42,59 @@ def split_adts(stream):
         payloads.append(bytes(stream[at + header:at + length]))
         at = at + length
     return fields, payloads
+
+
+def read_descriptor(data, at):
+    """One envelope's label (an MPEG-4 descriptor): a tag byte, then its length in 1 to 4 bytes of 7 bits each,
+    the top bit saying another byte follows (ffmpeg writes 80 80 80 25 for 37). Returns (tag, length, where the
+    contents start)."""
+    tag, length = data[at], 0
+    for i in range(1, 5):
+        length = length << 7 | data[at + i] & 0x7F
+        if not data[at + i] & 0x80:
+            return tag, length, at + i + 1
+    raise boxes.BoxError(f"descriptor at {at}: its length runs past 4 bytes")
+
+
+def _open(data, at, tag, end):
+    """Open the envelope at `at`, which must be a `tag` descriptor that ends inside `end`; return (contents, its end)."""
+    found, length, inside = read_descriptor(data, at)
+    if found != tag or inside + length > end:
+        raise boxes.BoxError(f"descriptor at {at}: expected tag {tag:#04x} inside {end}, found {found:#04x} "
+                             f"of {length} bytes")
+    return inside, inside + length
+
+
+def read_esds(data, box):
+    """The sheet in the tray (esds, a FullBox): an ES_Descriptor (0x03) holding a DecoderConfigDescriptor (0x04: the
+    object type, 0x40 for MPEG-4 audio, stream type 5 for sound, buffer size and bitrates) holding the
+    DecoderSpecificInfo (0x05), the AudioSpecificConfig; an SLConfigDescriptor (0x06) closes the ES_Descriptor."""
+    at, es_end = _open(data, box.payload + 4, 0x03, box.end)
+    flags = data[at + 2]          # dependsOn_ES_ID, URL and OCR_ES_Id follow when their flag bits are set
+    after = at + 3 + 2 * (flags >> 7)
+    after = after + (1 + data[after] if flags & 0x40 else 0) + 2 * (flags >> 5 & 1)
+    dc, dc_end = _open(data, after, 0x04, es_end)
+    asc, asc_end = _open(data, dc + 13, 0x05, dc_end)
+    fields = {"ES_ID": boxes.u16(data, at), "objectTypeIndication": data[dc], "streamType": data[dc + 1] >> 2,
+              "bufferSizeDB": int.from_bytes(data[dc + 2:dc + 5], "big"), "maxBitrate": boxes.u32(data, dc + 5),
+              "avgBitrate": boxes.u32(data, dc + 9), "ASC": bytes(data[asc:asc_end])}
+    fields.update(parse_asc(fields["ASC"]))
+    sl, _ = _open(data, dc_end, 0x06, es_end)
+    fields.update(sample_rate=SAMPLE_RATES[fields["samplingFrequencyIndex"]], SLConfig_predefined=data[sl],
+                  codec=f"mp4a.{fields['objectTypeIndication']:02x}.{fields['audioObjectType']}")
+    return fields
+
+
+boxes.DECODERS["esds"] = read_esds
+
+
+def parse_asc(asc):
+    """The AudioSpecificConfig's first 13 bits: audioObjectType (5 bits, 2 = AAC LC), samplingFrequencyIndex (4
+    bits, into SAMPLE_RATES) and channelConfiguration (4 bits): 12 08 = 00010 0100 0001 = AAC LC, 44,100 Hz, 1
+    channel. The same three fields an ADTS header carries."""
+    bits = int.from_bytes(asc[:2], "big")
+    fields = {"audioObjectType": bits >> 11, "samplingFrequencyIndex": bits >> 7 & 15,
+              "channelConfiguration": bits >> 3 & 15}
+    if len(asc) < 2 or fields["audioObjectType"] == 31 or fields["samplingFrequencyIndex"] > 12:
+        raise ValueError(f"AudioSpecificConfig {bytes(asc).hex(' ')}: escaped object type or rate not read")
+    return fields

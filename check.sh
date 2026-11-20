@@ -28,6 +28,7 @@ cmd_for() {
     ep18) echo 'python3 -m mp4kit samples testfiles/out/phone.mp4 --track 1 --pts' ;;
     ep19) echo 'python3 -m mp4kit frame testfiles/out/f2.mp4 --at 198 --out "$TMPOUT/frame.h264"' ;;
     ep20) echo 'python3 -m mp4kit dump testfiles/out/phone.mp4 --pcm' ;;
+    ep21) echo 'python3 -m mp4kit dump testfiles/out/aac-only.m4a --find esds' ;;
     *) return 1 ;;
   esac
 }

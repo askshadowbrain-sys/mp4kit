@@ -32,6 +32,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep18 | cli.py +17/-7, tables.py +17/-1, timing.py +15/-1 | 27 | ~14 | `cli._time_columns` 10 (13), `timing.presentation_times` 6 (11), `tables.read_elst` 4 (9); `cli.cmd_samples` 14 (19) keeps its ep16 body (its docstring is a line longer); `boxes.read_header`, `tables.read_mvhd`, `cli.cmd_dump` and `tables.sample_table` 15 overall |
 | ep19 (finale) | boxes.py +8/-2, cli.py +76/-1, timing.py +21/-1 | 72 | ~25 (finale ≤ ~90) | `cli.cmd_frame` 15 (21) and `cli._frame_route` 15 (18), both at the limit, `cli._annexb_samples` 8 (11), `timing.sync_before` 6 (9), `timing.sample_at` 4 (7), `cli._print_route` 4 (7), `boxes.read_mp4` 4 (8); `boxes.read_header`, `tables.read_mvhd`, `cli.cmd_dump` and `tables.sample_table` 15 overall |
 | ep20 | audio.py +42 (new), cli.py +52/-6 | 60 | ~23 | `cli._sound_tracks` 14 (18), `cli._print_pcm` 13 (16), `audio.split_adts` 12 (15), `cli._dump_view` 6 (8), `audio.adts_header` 3 (7); `cli.cmd_dump` drops from 15 to 12 (its view choice moved to `_dump_view`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame` and `cli._frame_route` 15 overall |
+| ep21 | audio.py +59/-1, cli.py +6/-5, tables.py +16/-1 | 48 | ~28 | `audio.read_esds` 14 (18), `audio.read_descriptor` 6 (10), `audio.parse_asc` 6 (10), `tables.read_audio_entry` 5 (10), `audio._open` 5 (7); `cli._sound_tracks` goes from 14 to 15 (its two raw reads become `read_audio_entry`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route` and `cli._sound_tracks` 15 overall |
 
 ## Functions over 15 lines
 
@@ -397,4 +398,35 @@ arithmetic became `picture_size`, so its body is 12 lines.
     56-bit field layout); `split_adts` (jump by frame length); `_print_pcm`'s five lines.
   - **On-screen trim:** show `_sound_tracks`, `_dump_view`, `SAMPLE_RATES` and the argparse line as finished
     code (ep10's pattern); type the rest (about 36 lines).
+- **ep21 (48, plan ~28).** The plan's four names come to 35 code lines: `read_audio_entry` 6 (with its size
+  check), `read_descriptor` 7, `read_esds` 15 and `parse_asc` 7; their registrations (`mp4a`/`enca`, `esds`) and
+  audio.py's `import boxes` are 3 more. The other 10:
+  - `_open` (6): open one envelope and check it is the one expected and ends inside its parent (the box's end
+    for 0x03, 0x03's end for 0x04 and 0x06, 0x04's end for 0x05): the box rule of episode 7 (a child may not run
+    past its parent) for descriptors. Without it `read_esds` repeats the check three times and goes past 15.
+  - `cli` (4 added, 3 removed): `cmd_dump` imports `audio` too, so `--find esds` finds its reader; `_sound_tracks`'s
+    two raw u16 reads (ep20) become `read_audio_entry` (`--pcm`'s output is unchanged: expected/ep20.txt).
+  - **The numbers (aac-only / phone):** mp4a at 16906 (90 B: 8 + 28 + esds 54) / 110619 (110 B: + btrt 20);
+    channelcount 1 / 2, samplesize 16, samplerate 0xac44_0000 / 0xbb80_0000 = 44,100.0 / 48,000.0 (16.16).
+    esds at 16942 / 110655, 54 B: ES_Descriptor `03 80 80 80 25` (37 = the rest of the box), ES_ID 1 / 2 (the
+    track_ID), flags 0; DecoderConfigDescriptor `04 80 80 80 17` (23): objectTypeIndication 0x40, `15` = streamType
+    5 << 2 | upStream 0 | reserved 1, bufferSizeDB 0, maxBitrate = avgBitrate 65,009 / 96,360;
+    DecoderSpecificInfo `05 80 80 80 05`: ASC `12 08 56 e5 00` / `11 90 56 e5 00`; SLConfigDescriptor
+    `06 80 80 80 01`, predefined 2. ASC `12 08` = 00010 0100 0001 = object type 2 (AAC LC), index 4 = 44,100, 1
+    channel; `11 90` = 2, index 3 = 48,000, 2 channels. ffprobe agrees on every one it prints (sample_rate,
+    channels, profile LC, bit_rate, extradata_size 5, mime_codec_string `mp4a.40.2`, the `codec` field).
+  - **`parse_asc` returns exactly the three fields an ADTS header carries** (the names of ep20's dict), so
+    `adts_header(parse_asc(esds["ASC"]), n)` replaces the test's hand-written dict (same first headers,
+    `fff14c801ebffc` and `fff1504021fffc`), and episode 22's `parse_asc(asc_bytes(x)) == x` holds without extra
+    keys. The sample rate (`SAMPLE_RATES[index]`) and the codec string are added by `read_esds`.
+  - **Not done here:** `parse_asc` refuses object type 31 (escape) and rate index 15 (a 24-bit rate) instead of
+    reading them; frameLengthFlag (bit 13: 960 samples) and the trailing `56 e5 00` (sync extension 0x2b7: SBR
+    signalled absent) are not read; QuickTime sound entry versions 1 and 2 (more fields before the boxes) are not
+    read (ffmpeg writes version 0); the ES_Descriptor's three optional fields are skipped, not returned; an esds
+    for another codec (objectTypeIndication other than 0x40, e.g. 0x6B MP3) is read the same way and its
+    DecoderSpecificInfo still parsed as an ASC; a descriptor after 0x05 inside 0x04 (profile-level) is ignored.
+  - **Blocks the Build-it scene shows:** `read_descriptor` (the size code, 7 bits a byte); `read_esds`'s three
+    `_open`s, envelope inside envelope; `parse_asc` (13 bits by shifts); `read_audio_entry`'s four fields.
+  - **On-screen trim:** show `_open`, the registrations, the ES flags lines and the `cli` changes as finished
+    code (ep10's pattern); type the rest (about 32 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

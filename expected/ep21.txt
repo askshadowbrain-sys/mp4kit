@@ -1,0 +1,1 @@
+moov/trak/mdia/minf/stbl/stsd/mp4a/esds 16942 54 ES_ID=1 objectTypeIndication=64 streamType=5 bufferSizeDB=0 maxBitrate=65009 avgBitrate=65009 ASC=120856e500 audioObjectType=2 samplingFrequencyIndex=4 channelConfiguration=1 sample_rate=44100 SLConfig_predefined=2 codec=mp4a.40.2

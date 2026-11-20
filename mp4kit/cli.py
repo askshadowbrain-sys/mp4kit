@@ -86,7 +86,7 @@ def cmd_dump(args):
     """`dump FILE [--find TYPE] [--pcm]`: print the box tree, indented by depth, or only the boxes of one type by
     their path, each with any decoded fields; or, with --pcm, each sound track's PCM arithmetic."""
     from . import boxes
-    from . import tables  # noqa: F401  (importing it registers its readers in boxes.DECODERS)
+    from . import audio, tables  # noqa: F401  (importing them registers their readers in boxes.DECODERS)
     data = boxes.read_mp4(args.file)
     try:
         tree = boxes.walk(data)
@@ -129,8 +129,8 @@ def _print_pcm(data, tree):
 
 def _sound_tracks(data, tree):
     """Each sound track (hdlr soun) with samples in its stsz: its number (from 1, in file order), its sample entry's
-    type, the sample rate (its mdhd clock), channelcount and samplesize (the entry's u16s at 16 and 18 of its fields;
-    episode 21 reads the whole entry), its length in seconds (tkhd, on the movie's clock) and its sample sizes."""
+    type, the sample rate (its mdhd clock), channelcount and samplesize (read_audio_entry), its length in seconds
+    (tkhd, on the movie's clock) and its sample sizes."""
     from . import boxes, tables, timing
     found = []
     for number, trak in enumerate(boxes.find_all(tree, "moov/trak"), 1):
@@ -142,8 +142,9 @@ def _sound_tracks(data, tree):
         length = tables.read_tkhd(data, boxes.find(trak.children, "tkhd"))["duration"]
         movie = tables.read_mvhd(data, boxes.find(tree, "moov/mvhd"))["timescale"]
         if sizes:
-            found.append((number, entry.type, rate, boxes.u16(data, entry.payload + 16),
-                          boxes.u16(data, entry.payload + 18), timing.seconds(length, movie), sizes))
+            fields = tables.read_audio_entry(data, entry)
+            found.append((number, entry.type, rate, fields["channelcount"], fields["samplesize"],
+                          timing.seconds(length, movie), sizes))
     return found
 
 

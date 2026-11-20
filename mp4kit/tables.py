@@ -5,7 +5,7 @@ stts (When?) and stss (Where can I start?). Episode 15: drawers 3 to 5, stsc (Wh
 start?) and stsz (How big is each sample?). Episode 16: the five lookups as code, every sample of a track
 from its five drawers (Sample, sample_table). Episode 17: ctts, the second-clock slip in the time drawer: each
 sample's composition time, its decode time plus the slip (read_ctts). Episode 18: edts/elst, the timer at the
-corridor's entrance (read_elst)."""
+corridor's entrance (read_elst). Episode 21: the sound corridor's sheet, mp4a (read_audio_entry)."""
 import struct
 from dataclasses import dataclass
 
@@ -142,6 +142,21 @@ def read_visual_entry(data, box):
 
 
 boxes.DECODERS["avc1"] = read_visual_entry
+
+
+def read_audio_entry(data, box):
+    """A sound sample entry's fixed fields (mp4a, enca, ...): 6 reserved bytes and data_reference_index, as in
+    every sample entry; 8 reserved bytes; channelcount and samplesize; pre_defined and reserved; samplerate as
+    16.16 fixed point. Its own boxes (esds, btrt, ...) start 28 bytes into the payload. Only a hint: the codec's
+    own config (esds) is the one a decoder believes."""
+    if box.size < 36:
+        raise boxes.BoxError(f"{box.type} at {box.start}: a sound sample entry needs 36 bytes, box has {box.size}")
+    at = box.payload
+    return {"data_reference_index": boxes.u16(data, at + 6), "channelcount": boxes.u16(data, at + 16),
+            "samplesize": boxes.u16(data, at + 18), "samplerate": fixed(boxes.u32(data, at + 24), 16)}
+
+
+boxes.DECODERS["mp4a"] = boxes.DECODERS["enca"] = read_audio_entry
 
 
 def codec_string(entry):
