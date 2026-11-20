@@ -91,7 +91,7 @@ def cmd_dump(args):
     try:
         tree = boxes.walk(data)
         _dump_view(data, tree, args)
-    except boxes.BoxError as e:
+    except ValueError as e:         # a BoxError, or an edit list with no edit that plays (episode 22)
         print(f"error: {e}")
         return 1
     if not any(b.type == "moov" for b in tree):
@@ -100,13 +100,16 @@ def cmd_dump(args):
 
 
 def _dump_view(data, tree, args):
-    """What dump prints: the box tree, the boxes of one type (--find), or the sound arithmetic (--pcm)."""
+    """What dump prints: the box tree, the boxes of one type (--find; elst adds each sound track's priming), or the
+    sound arithmetic (--pcm)."""
     if args.pcm:
         _print_pcm(data, tree)
     elif args.find is None:
         _print_tree(data, tree, 0)
     elif _print_found(data, tree, args.find, "") == 0:
         print(f"no {args.find} box")
+    elif args.find == "elst":
+        _print_priming(data, tree)
 
 
 def _print_pcm(data, tree):
@@ -114,7 +117,7 @@ def _print_pcm(data, tree):
     its length would weigh as raw PCM; what its AAC frames weigh (stsz); and the same sums for one second."""
     from . import audio
     tracks = _sound_tracks(data, tree)
-    for number, entry, rate, channels, bits, seconds, sizes in tracks:
+    for number, entry, rate, channels, bits, seconds, sizes, _ in tracks:
         pcm, aac = audio.pcm_bytes(seconds, rate, channels, bits), sum(sizes)
         second, aac_second = audio.pcm_bytes(1, rate, channels, bits), round(aac / seconds)
         print(f"track {number} soun {entry}: {rate} samples/s (mdhd), channelcount {channels}, samplesize {bits}")
@@ -130,7 +133,7 @@ def _print_pcm(data, tree):
 def _sound_tracks(data, tree):
     """Each sound track (hdlr soun) with samples in its stsz: its number (from 1, in file order), its sample entry's
     type, the sample rate (its mdhd clock), channelcount and samplesize (read_audio_entry), its length in seconds
-    (tkhd, on the movie's clock) and its sample sizes."""
+    (tkhd, on the movie's clock), its sample sizes and its trak box."""
     from . import boxes, tables, timing
     found = []
     for number, trak in enumerate(boxes.find_all(tree, "moov/trak"), 1):
@@ -144,8 +147,28 @@ def _sound_tracks(data, tree):
         if sizes:
             fields = tables.read_audio_entry(data, entry)
             found.append((number, entry.type, rate, fields["channelcount"], fields["samplesize"],
-                          timing.seconds(length, movie), sizes))
+                          timing.seconds(length, movie), sizes, trak))
     return found
+
+
+def _print_priming(data, tree):
+    """After --find elst, three lines a sound track: the warm-up its entrance timer skips (priming, in samples and
+    ms), what the edit plays out of the track (edit_window, mdhd), and its roll slip (sgpd) with the samples it
+    covers (sbgp)."""
+    from . import audio, boxes, tables
+    movie = tables.read_mvhd(data, boxes.find(tree, "moov/mvhd"))["timescale"]
+    for number, entry, rate, *_, sizes, trak in _sound_tracks(data, tree):
+        elst = tables.read_elst(data, boxes.find(trak.children, "edts/elst"))
+        stbl = boxes.find(trak.children, "mdia/minf/stbl").children
+        sgpd, sbgp = (boxes.decode(data, b) if b else {} for b in (boxes.find(stbl, "sgpd"), boxes.find(stbl, "sbgp")))
+        skip, track = audio.priming(elst), tables.read_mdhd(data, boxes.find(trak.children, "mdia/mdhd"))["seconds"]
+        print(f"track {number} soun: priming {skip} samples (elst media_time), {skip / rate * 1000:.1f} ms at {rate}/s")
+        if elst:
+            start, length = audio.edit_window(elst, rate, movie)
+            print(f"track {number} soun: plays {length:.3f} s from {start:.3f} s, of {track:.3f} s in the track (mdhd)")
+        covered = sum(n for n, index in sbgp.get("entries", []) if index)
+        print(f"track {number} soun: {sgpd.get('grouping_type', 'no')} slip {sgpd.get('entries', [])} (sgpd) on "
+              f"{covered} of {len(sizes)} samples (sbgp)")
 
 
 def cmd_samples(args):

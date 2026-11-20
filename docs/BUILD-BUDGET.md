@@ -33,6 +33,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep19 (finale) | boxes.py +8/-2, cli.py +76/-1, timing.py +21/-1 | 72 | ~25 (finale ≤ ~90) | `cli.cmd_frame` 15 (21) and `cli._frame_route` 15 (18), both at the limit, `cli._annexb_samples` 8 (11), `timing.sync_before` 6 (9), `timing.sample_at` 4 (7), `cli._print_route` 4 (7), `boxes.read_mp4` 4 (8); `boxes.read_header`, `tables.read_mvhd`, `cli.cmd_dump` and `tables.sample_table` 15 overall |
 | ep20 | audio.py +42 (new), cli.py +52/-6 | 60 | ~23 | `cli._sound_tracks` 14 (18), `cli._print_pcm` 13 (16), `audio.split_adts` 12 (15), `cli._dump_view` 6 (8), `audio.adts_header` 3 (7); `cli.cmd_dump` drops from 15 to 12 (its view choice moved to `_dump_view`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame` and `cli._frame_route` 15 overall |
 | ep21 | audio.py +59/-1, cli.py +6/-5, tables.py +16/-1 | 48 | ~28 | `audio.read_esds` 14 (18), `audio.read_descriptor` 6 (10), `audio.parse_asc` 6 (10), `tables.read_audio_entry` 5 (10), `audio._open` 5 (7); `cli._sound_tracks` goes from 14 to 15 (its two raw reads become `read_audio_entry`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route` and `cli._sound_tracks` 15 overall |
+| ep22 | audio.py +30/-1, cli.py +28/-5, tables.py +36/-1 | 55 | ~12 | `cli._print_priming` 14 (18), `tables.read_sgpd` 12 (16), `tables.read_sbgp` 7 (11), `audio.asc_bytes` 4 (8), `audio.edit_window` 4 (8), `audio.priming` 1 (5); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route` and `cli._sound_tracks` 15 overall |
 
 ## Functions over 15 lines
 
@@ -429,4 +430,43 @@ arithmetic became `picture_size`, so its body is 12 lines.
     `_open`s, envelope inside envelope; `parse_asc` (13 bits by shifts); `read_audio_entry`'s four fields.
   - **On-screen trim:** show `_open`, the registrations, the ES flags lines and the `cli` changes as finished
     code (ep10's pattern); type the rest (about 32 lines).
+- **ep22 (55, plan ~12).** The plan's three names come to 13 code lines in `audio.py`: `priming` 2,
+  `edit_window` 5, `asc_bytes` 5 and the `timing` import 1 (`edit_window` converts with ep10's `timing.seconds`).
+  The extra 42:
+  - **The roll slip (22):** `tables.read_sgpd` (13) and `tables.read_sbgp` (8), registered in `boxes.DECODERS`
+    (1). The episode's room is "the roll slip (sgpd/sbgp)" and ep21's script promised that "sgpd and sbgp join
+    in" (`p12`, `h25`); without readers dump prints them as bare `sgpd 17448 26`. `read_sgpd` reads version 1
+    with a default_length (what ffmpeg writes in every committed file); a `roll`/`prol` entry is a signed 16-bit
+    roll_distance, other groupings' entries stay as bytes; version 0 and 2 give only version and grouping_type.
+    `read_sbgp` skips version 1's grouping_type_parameter.
+  - **`cli` (20):** `_print_priming` (15): after `--find elst`, three lines a sound track (expected/ep22.txt):
+    the priming in samples and ms, the window the edit plays out of the track's mdhd length, the roll slip and
+    the samples sbgp puts under it. It lives under each sound track, not on the elst line, because the same
+    `(96000, 1024)` on phone.mp4's **video** is the B-frame delay (ep18), not priming; f2.mp4 (no sound) prints
+    no priming lines. `_sound_tracks` hands back its trak too (1 changed, `_print_pcm`'s unpack 1 changed);
+    `_dump_view`'s new branch (2); `cmd_dump` catches `ValueError` (BoxError's parent) so an edit list of only
+    empty edits prints `error: no edit plays the track ...` instead of a traceback (1 changed).
+  - `test_ep18.test_dump_elst` now checks that phone's two elst lines start the output (ep22 adds the priming
+    lines after them).
+  - **The numbers (aac-only / phone audio):** elst `00015888 00000400 0001 0000` / `00017700 00000400 0001 0000`:
+    segment_duration 88,200 / 96,000 on the movie clock (mvhd 44,100 / 48,000), media_time 1,024 on the track's
+    (mdhd 44,100 / 48,000) = 23.2 / 21.3 ms of priming; mdhd duration 89,224 / 97,024 = 1,024 + the window
+    exactly. sgpd (26 B) version 1, `roll`, default_length 2, one entry `ff ff` = -1; sbgp (28 B) version 0,
+    `roll`, one run (88 / 95, 1): every sample. ffprobe: initial_padding 1024, first packet pts -1024 with Skip
+    Samples 1024, start_time 0, duration 2.000000 (duration_ts 88,200 / 96,000). ffmpeg decodes 88,200 / 96,000
+    samples (176,400 / 384,000 B) with the edit list, 89,224 / 97,024 (178,448 / 388,096 B) with
+    `-ignore_editlist 1`, and 90,112 / 97,280 (180,224 / 389,120 B) from the ADTS stream: every frame's 1,024,
+    the priming and the last frame's 888 / 256 padded samples kept. The first 1,024 decoded samples without the
+    edit list peak at 22 / 54 (of 32,767), quiet but not zero. `asc_bytes` gives `12 08` / `11 90`, the ASC's
+    first two bytes (the trailing `56 e5 00`, the SBR sync extension, is not written), and
+    `parse_asc(asc_bytes(x)) == x` holds for all 30 x 13 x 16 field values the 2-byte form can carry.
+  - **Not done here:** only the first real edit is read (a second edit, or media_rate, is ignored);
+    `edit_window` does not check that the window fits in the track; `priming` takes media_time as samples, true
+    when the sound track's mdhd timescale is its sample rate (ffmpeg always; not required by the standard);
+    `asc_bytes` writes frameLengthFlag 0 (1,024 samples) and no extension; Apple's implicit 2,112 (no roll group)
+    is not assumed; fragmented files (no edit list, episode 30) give no priming lines.
+  - **Blocks the Build-it scene shows:** `priming` (one line); `edit_window` (two clocks); `asc_bytes` (13 bits
+    by shifts, `parse_asc` backwards); `read_sgpd`'s roll entry (`ff ff` signed).
+  - **On-screen trim:** show `read_sbgp`, the registration, `read_sgpd`'s version and length guards,
+    `_print_priming` and the `cli` changes as finished code (ep10's pattern); type the rest (about 22 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

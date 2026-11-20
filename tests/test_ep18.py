@@ -123,9 +123,11 @@ class Ep18(unittest.TestCase):
             elst_of(bytes(blob))
 
     def test_dump_elst(self):
-        self.assertEqual(run_cli("dump", "testfiles/out/phone.mp4", "--find", "elst"),
-                         "moov/trak/edts/elst 108968 28 version=0 entries=[(96000, 1024, 1, 0)]\n"
-                         "moov/trak/edts/elst 110422 28 version=0 entries=[(96000, 1024, 1, 0)]\n")
+        # episode 22 adds the sound track's priming lines after these two (test_ep22)
+        printed = run_cli("dump", "testfiles/out/phone.mp4", "--find", "elst")
+        self.assertTrue(printed.startswith("moov/trak/edts/elst 108968 28 version=0 entries=[(96000, 1024, 1, 0)]\n"
+                                           "moov/trak/edts/elst 110422 28 version=0 entries=[(96000, 1024, 1, 0)]\n"
+                                           "track 2 soun: "))
 
     def test_cmd_samples_phone_pts(self):
         printed = run_cli("samples", "testfiles/out/phone.mp4", "--track", "1", "--pts")

@@ -5,7 +5,8 @@ stts (When?) and stss (Where can I start?). Episode 15: drawers 3 to 5, stsc (Wh
 start?) and stsz (How big is each sample?). Episode 16: the five lookups as code, every sample of a track
 from its five drawers (Sample, sample_table). Episode 17: ctts, the second-clock slip in the time drawer: each
 sample's composition time, its decode time plus the slip (read_ctts). Episode 18: edts/elst, the timer at the
-corridor's entrance (read_elst). Episode 21: the sound corridor's sheet, mp4a (read_audio_entry)."""
+corridor's entrance (read_elst). Episode 21: the sound corridor's sheet, mp4a (read_audio_entry). Episode 22: the
+roll slip, a sample group: its entries (sgpd) and the runs of samples it covers (sbgp)."""
 import struct
 from dataclasses import dataclass
 
@@ -295,6 +296,40 @@ def read_elst(data, box):
 
 boxes.DECODERS["elst"] = lambda data, box: {"version": boxes.read_fullbox(data, box)[0],
                                             "entries": read_elst(data, box)}
+
+
+def read_sgpd(data, box):
+    """The roll slip (sgpd, a sample group's descriptions): its grouping_type, then entries. Version 1 says how long
+    each entry is (default_length); a roll entry is one signed 16-bit roll_distance, -1 = start decoding one sample
+    earlier and throw that sample's sound away. Version 0 or 2, or entries of their own lengths: not read."""
+    version, at = boxes.read_fullbox(data, box)[0], box.payload + 8
+    kind = data[box.payload + 4:at].decode("latin-1")
+    length = boxes.u32(data, at) if version == 1 else 0
+    if length == 0:
+        return {"version": version, "grouping_type": kind}
+    count, at = boxes.u32(data, at + 4), at + 8
+    if at + count * length > box.end:
+        raise boxes.BoxError(f"sgpd at {box.start}: {count} entries of {length} bytes run past the box")
+    entries = [bytes(data[e:e + length]) for e in range(at, at + count * length, length)]
+    if kind in ("roll", "prol"):
+        entries = [int.from_bytes(e, "big", signed=True) for e in entries]
+    return {"version": version, "grouping_type": kind, "default_length": length, "entries": entries}
+
+
+def read_sbgp(data, box):
+    """Which samples carry which slip (sbgp): its grouping_type (and in version 1 a parameter), then runs of
+    (sample_count, group_description_index): so many samples in a row that use sgpd's entry n (from 1; 0 = none).
+    aac-only: [(88, 1)], every sample."""
+    version = boxes.read_fullbox(data, box)[0]
+    at = box.payload + 8 + 4 * (version == 1)
+    count = boxes.u32(data, at)
+    if at + 4 + 8 * count > box.end:
+        raise boxes.BoxError(f"sbgp at {box.start}: entry_count {count} runs past the box")
+    return {"version": version, "grouping_type": data[box.payload + 4:box.payload + 8].decode("latin-1"),
+            "entries": list(struct.iter_unpack(">II", data[at + 4:at + 4 + 8 * count]))}
+
+
+boxes.DECODERS["sgpd"], boxes.DECODERS["sbgp"] = read_sgpd, read_sbgp
 
 
 @dataclass

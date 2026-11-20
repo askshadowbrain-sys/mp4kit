@@ -1,7 +1,9 @@
 """Sound. Episode 20: PCM arithmetic (how many bytes raw sound takes), AAC's frame of 1,024 samples, and ADTS,
 the 7-byte header that lets AAC frames travel without an MP4 around them. Episode 21: esds, the sheet in the
-sound corridor's tray, in nested envelopes (descriptors), and the AudioSpecificConfig inside the last one."""
+sound corridor's tray, in nested envelopes (descriptors), and the AudioSpecificConfig inside the last one. Episode
+22: priming, the encoder's warm-up that the entrance timer (elst) skips, and asc_bytes, parse_asc backwards."""
 from . import boxes
+from . import timing
 
 # AAC's sample rates, by the 4-bit index that ADTS and the AudioSpecificConfig store (3 is 48,000, 4 is 44,100)
 SAMPLE_RATES = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350]
@@ -98,3 +100,30 @@ def parse_asc(asc):
     if len(asc) < 2 or fields["audioObjectType"] == 31 or fields["samplingFrequencyIndex"] > 12:
         raise ValueError(f"AudioSpecificConfig {bytes(asc).hex(' ')}: escaped object type or rate not read")
     return fields
+
+
+def priming(elst):
+    """How many samples of warm-up the entrance timer skips: the first real edit's media_time. A sound track's clock
+    (mdhd) ticks once a sample, so its ticks are samples: ffmpeg's AAC encoder primes 1,024 (one frame). Empty edits
+    (-1) are skipped; no edit list gives 0, and a player cannot tell priming from sound."""
+    return next((media_time for _, media_time, *_ in elst if media_time != -1), 0)
+
+
+def edit_window(elst, media_timescale, movie_timescale):
+    """The first real edit as (where it starts in the track, how long it plays), in seconds: its media_time on the
+    track's clock, its segment_duration on the movie's. aac-only: (1,024 / 44,100, 88,200 / 44,100) = (0.023, 2.0),
+    out of the track's 89,224 ticks."""
+    for segment_duration, media_time, *_ in elst:
+        if media_time != -1:
+            return timing.seconds(media_time, media_timescale), timing.seconds(segment_duration, movie_timescale)
+    raise ValueError("no edit plays the track (no edit list, or only empty edits)")
+
+
+def asc_bytes(asc):
+    """parse_asc backwards: the three fields an ADTS header carries, packed into a 2-byte AudioSpecificConfig (5 + 4
+    + 4 bits, then three flags of 0): AAC LC, index 4, 1 channel = 12 08. ADTS gives these back; it has no field
+    for the priming, which lives in the edit list, so stripping the boxes loses it."""
+    aot, index, channels = asc["audioObjectType"], asc["samplingFrequencyIndex"], asc["channelConfiguration"]
+    if not (0 < aot < 31 and index <= 12 and channels < 16):
+        raise ValueError(f"AudioSpecificConfig fields {asc}: out of the 2-byte form's range")
+    return (aot << 11 | index << 7 | channels << 3).to_bytes(2, "big")
