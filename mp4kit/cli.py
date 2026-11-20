@@ -272,6 +272,77 @@ def _annexb_samples(data, trak, samples):
     return nal.to_annexb(config["SPS"] + config["PPS"] + units)
 
 
+def cmd_extract(args):
+    """`extract FILE --track N -o OUT`: list the corridors, then copy one track's parcels out of the House into a plain
+    stream, without decoding them: H.264 (avc1) as Annex B, AAC (mp4a) as ADTS, text (tx3g, text) as SRT. Tracks
+    count from 1 in file order; a signpost (tref) names tracks by track_ID."""
+    from . import boxes, tables
+    data = boxes.read_mp4(args.file)
+    tracks = tables.read_tracks(data, boxes.walk(data))
+    for n, t in enumerate(tracks, 1):
+        signs = "".join(f", {kind} -> track_ID {ids}" for kind, ids in t.tref.items())
+        print(f"track {n}: track_ID {t.id} {t.handler} {t.entry['type']}, {len(t.samples)} samples{signs}")
+    try:
+        track, form, stream = _plain_stream(data, tracks, args.track)
+    except ValueError as e:
+        print(f"error: {e}")
+        return 1
+    Path(args.out).write_bytes(stream)
+    print(f"wrote track {args.track} as {form}: {len(track.samples)} samples ({sum(s.size for s in track.samples)} "
+          f"bytes) -> {len(stream)} bytes")
+    return 0
+
+
+def _plain_stream(data, tracks, n):
+    """Track n (from 1), the stream's form and its bytes, written by the WRITERS entry for its sample entry's type."""
+    if not 1 <= n <= len(tracks):
+        raise ValueError(f"no track {n}, the file has {len(tracks)}")
+    track = tracks[n - 1]
+    if track.entry["type"] not in WRITERS or not track.samples:
+        raise ValueError(f"track {n} ({track.entry['type']}, {len(track.samples)} samples): no plain stream for it")
+    form, write = WRITERS[track.entry["type"]]
+    return track, form, write(data, track)
+
+
+def _annexb_track(data, track):
+    """Every sample's NAL units, length labels swapped for start codes, avcC's SPS and PPS before each keyframe."""
+    from . import nal
+    config = track.entry["avcC"]
+    size, params = config["lengthSizeMinusOne"] + 1, config["SPS"] + config["PPS"]
+    units = lambda s: [u for _, u in nal.iter_length_prefixed(data, s.offset, s.offset + s.size, size)]
+    return b"".join(nal.annexb_sample(units(s), params) for s in track.samples)
+
+
+def _adts_track(data, track):
+    """Every AAC frame behind its 7-byte ADTS header, built from the esds AudioSpecificConfig (episodes 20, 21)."""
+    from . import audio
+    asc = audio.parse_asc(track.entry["esds"]["ASC"])
+    return b"".join(audio.adts_header(asc, s.size) + data[s.offset:s.offset + s.size] for s in track.samples)
+
+
+def _srt_track(data, track):
+    """Text samples as SRT cues: a sample is a 2-byte length, then that many bytes of text (an empty one is a gap,
+    and gets no cue); a cue lasts until the next sample starts, the last one until the track ends (mdhd)."""
+    from . import boxes
+    ends, cues = [s.dts for s in track.samples[1:]] + [track.duration], []
+    for s, end in zip(track.samples, ends):
+        text = bytes(data[s.offset + 2:s.offset + 2 + boxes.u16(data, s.offset)]) if s.size >= 2 else b""
+        if text:
+            cues.append(f"{len(cues) + 1}\n{_srt_time(s.dts, track.timescale)} --> "
+                        f"{_srt_time(end, track.timescale)}\n{text.decode('utf-8')}\n\n")
+    return "".join(cues).encode("utf-8")
+
+
+def _srt_time(ticks, timescale):
+    """Ticks on a track's clock as SRT's hours:minutes:seconds,milliseconds (900,000 at 1,000,000/s = 00:00:00,900)."""
+    ms = ticks * 1000 // timescale
+    return f"{ms // 3600000:02}:{ms // 60000 % 60:02}:{ms // 1000 % 60:02},{ms % 1000:03}"
+
+
+WRITERS = {"avc1": ("Annex B", _annexb_track), "mp4a": ("ADTS", _adts_track), "tx3g": ("SRT", _srt_track),
+           "text": ("SRT", _srt_track)}
+
+
 def _show(value):
     """A field as dump prints it: bytes as hex digits (in a list too), anything else as Python prints it."""
     if isinstance(value, list):
@@ -369,12 +440,21 @@ def _add_frame(sub):
     f.set_defaults(func=cmd_frame)
 
 
+def _add_extract(sub):
+    """Register the `extract` command."""
+    e = sub.add_parser("extract", help="copy one track's samples out into a plain stream (.h264, .aac, .srt)")
+    e.add_argument("file", help="the MP4 file to read")
+    e.add_argument("--track", type=int, required=True, help="which track, counted from 1 in file order")
+    e.add_argument("-o", dest="out", required=True, help="the file to write")
+    e.set_defaults(func=cmd_extract)
+
+
 def main(argv: Optional[list] = None) -> int:
     """Parse the command line and run the chosen subcommand."""
     p = argparse.ArgumentParser(prog="mp4kit")
     sub = p.add_subparsers(dest="cmd", required=True)
     for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes, _add_dump, _add_samples,
-                _add_frame):
+                _add_frame, _add_extract):
         add(sub)
     args = p.parse_args(argv)
     return args.func(args)

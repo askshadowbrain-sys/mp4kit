@@ -83,6 +83,8 @@ class Ep18(unittest.TestCase):
             captured = json.loads((CAPS / f"{f.name}.probe.json").read_text())
             for index in range(len(traks(contents))):
                 packets = [p for p in captured["packets"] if p["stream_index"] == index]
+                if f.name == "phone-chapters.mp4" and index == 2:    # ffprobe reads it as chapters, no packets
+                    continue
                 dts, pts = times(contents, index + 1)
                 with self.subTest(f=f.name, track=index + 1):
                     self.assertEqual([p["pts"] for p in packets], pts[:len(packets)])        # exact: no shift

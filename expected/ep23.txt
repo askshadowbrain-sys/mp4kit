@@ -1,0 +1,3 @@
+track 1: track_ID 1 vide avc1, 60 samples
+track 2: track_ID 2 soun mp4a, 95 samples
+wrote track 2 as ADTS: 95 samples (24347 bytes) -> 25012 bytes

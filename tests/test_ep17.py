@@ -81,6 +81,8 @@ class Ep17(unittest.TestCase):
             for index, trak in enumerate(traks(f.read_bytes())):
                 samples = tables.sample_table(f.read_bytes(), trak)
                 packets = [p for p in captured["packets"] if p["stream_index"] == index]
+                if f.name == "phone-chapters.mp4" and index == 2:    # ffprobe reads it as chapters, no packets
+                    continue
                 with self.subTest(f=f.name, track=index + 1):
                     shift = samples[0].dts - packets[0]["dts"]       # ffprobe applies the edit list (episode 18)
                     self.assertIn(shift, (0, 33, 1024))

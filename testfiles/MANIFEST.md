@@ -16,14 +16,16 @@ also byte-identical, captures included.
   - `<file>.boxes.json` is the output of `python3 media/moov-series/kit/tools/walk.py <file> --json`, where walk.py parses the file. Where it does not, `<file>.walk-error.txt` holds its error.
 - **Trace line format:** `type:'stco' parent:'stbl' sz: <box size> <offset of the box's end of header inside the parent> <parent payload size>`.
 - **Episodes:** the "used by" column gives the episodes of `../CURRICULUM.md` that show the file (its
-  `test file` column). Besides these, the tests of episode 9 (`walk`, `dump`) and 36 (`check.problems`) run on all 16.
-  Five more files are pending (`../CURRICULUM.md`, "Test files"): phone-sidx.mp4, phone-chapters.mp4,
-  phone.ts, vp9opus.mp4 and phone-tagged.mp4.
-- **Total size:** the 16 files plus their captures hold 2,008,381 bytes (about 1.92 MiB). On disk, `du -k` reports 2,460 KB: out/ 1,552 and captures/ 908, rounded up to 4 KB blocks.
+  `test file` column). Besides these, the tests of episode 9 (`walk`, `dump`) and 36 (`check.problems`) run on all 17.
+  Four more files are pending (`../CURRICULUM.md`, "Test files"): phone-sidx.mp4, phone.ts, vp9opus.mp4 and
+  phone-tagged.mp4. phone-chapters.mp4, the fifth, was added on 2026-11-21 for episode 23 (mp4kit tag ep23).
+- **Total size:** the 17 files plus their captures hold 2,198,688 bytes (about 2.10 MiB; 2,008,381 for the first 16).
+  On disk, `du -k` reports 2,288 KB: out/ 1,344 and the 54 capture files 944, rounded up to 4 KB blocks (measured
+  2026-11-21; the per-episode `captures/epNN/` folders are not counted).
 
 ## Files
 
-Offsets are byte offsets from the start of the file. Sample counts are ffprobe packet counts per stream. Every remux of phone.mp4 (subs, frag-cmaf, rotated, cenc) keeps phone's movie timescale with `-movie_timescale 48000`; without it ffmpeg's `-c copy` picks 384,000 (or 48,000,000 with the subtitle track) and rewrites the mvhd/tkhd/elst durations. Sample numbers in the keyframe lists below are in decode order.
+Offsets are byte offsets from the start of the file. Sample counts are ffprobe packet counts per stream. Every remux of phone.mp4 (subs, phone-chapters, frag-cmaf, rotated, cenc) keeps phone's movie timescale with `-movie_timescale 48000`; without it ffmpeg's `-c copy` picks 384,000 (or 48,000,000 with the subtitle track) and rewrites the mvhd/tkhd/elst durations. Sample numbers in the keyframe lists below are in decode order.
 
 | file | purpose | used by (episodes) | size (B) | key numbers | recipe (see make.sh) |
 |---|---|---|---|---|---|
@@ -33,6 +35,7 @@ Offsets are byte offsets from the start of the file. Sample counts are ffprobe p
 | `phone-fast.mp4` | phone.mp4 with the moov first: the same samples, with every stco entry moved by +3,412. | 27 | 112,156 | ftyp 0 (32); moov 32 (3,412); free 3,444 (8); mdat 3,452 (108,704). 60 + 95 samples. | the phone.mp4 encode + `-movflags +faststart` |
 | `aac-only.m4a` | Audio only: mp4a, esds and the AAC priming edit list. | 8, 14, 20, 21, 22 | 17,563 | ftyp 0 (28); free 28 (8); mdat 36 (16,449); moov 16,485 (1,078). 88 samples, AAC-LC, 44.1 kHz, mono. | `sine=…:sample_rate=44100` → `aac -ac 1 -b:a 64k` |
 | `subs.mp4` | phone.mp4 plus a timed-text track: tx3g sample entry, nmhd, language eng. | 12, 23 | 112,739 | mdat 40 (108,731); moov 108,771 (3,968). Three tracks: 60 video, 95 audio and 4 subtitle samples. The subtitle stsz holds 4 samples [11, 2, 12, 2]: cue 1 at 0.0 s (11 B), an empty gap at 0.9 s (2 B), cue 2 at 1.0 s (12 B) and a trailing empty sample (2 B) whose stts delta is 0. ffprobe lists 3: it lists the gap at 0.9 s and drops the trailing zero-duration sample. mvhd timescale 48,000, duration 96,000. | phone.mp4 + 2-cue SRT, `-c copy -c:s mov_text -metadata:s:s:0 language=eng -movie_timescale 48000` |
+| `phone-chapters.mp4` | phone.mp4 plus two chapters: a third track (hdlr `text`, a QuickTime `text` sample entry, gmhd, tkhd flags 2 = in movie but not enabled) that the video and sound traks point at with `tref/chap`. | 23 | 112,810 | ftyp 0 (32); free 32 (8); mdat 40 (108,738); moov 108,778 (4,032). Three tracks: 60 video, 95 audio and 2 chapter samples (17 B each: `00 03` "One" / "Two", then a 12-byte `encd` box), stored first in mdat at 48 and 65, so every phone.mp4 sample sits 34 bytes later (video from 82, audio from 8,045) with the same bytes. `tref` (20 B) at 109,030 (video) and 110,504 (audio): `chap` track_IDs [3]; track 3 has no tref. Track 3: mdhd 48,000 / 96,000, language code 0 (QuickTime's Macintosh code for English; ffprobe says eng), stts (2, 48,000), elst (96,000, 0). udta also gets a Nero `chpl` (41 B) with the same two titles. ffprobe: 3 streams (the third `bin_data`, tag `text`, nb_frames 2), 2 chapters (0–1 s "One", 1–2 s "Two"), 60 + 95 packets (none for the chapter track). mvhd timescale 48,000, duration 96,000. | phone.mp4 + a two-chapter FFMETADATA file, `-map 0 -map_chapters 1 -c copy -movie_timescale 48000` |
 | `frag-cmaf.mp4` | Fragmented CMAF: an empty moov with mvex/trex, then one moof+mdat per video keyframe, both tracks in each moof, then mfra. | 30, 31, 32 | 111,538 | ftyp 0 (28); moov 28 (1,214); moof 1,242 (608); mdat 1,850 (53,166); moof 55,016 (828); mdat 55,844 (55,546); mfra 111,390 (148). 60 + 95 samples. mvhd timescale 48,000, duration 0 (the empty moov). | phone.mp4 `-c copy -movflags +frag_keyframe+empty_moov+default_base_moof+cmaf -movie_timescale 48000` |
 | `hevc.mp4` | HEVC in an hvc1 sample entry: the parameter sets are only in hvcC, and the first sample is a single IDR slice NAL (type 20). | 33 | 33,235 | ftyp 0 (28); free 28 (8); mdat 36 (29,248); moov 29,284 (3,951). 60 samples, 320×180, Main profile. Keyframes at samples 1 and 28; sample 28 is shown at 1.0 s and sits early in decode order because of B-frames. | `libx265 -tag:v hvc1 -crf 32`, `pools=none:frame-threads=1:keyint=30:min-keyint=30:scenecut=0` |
 | `hevc-hev1.mp4` | The same encode in an hev1 sample entry with x265 `repeat-headers=1`. Each keyframe sample now starts with VPS (32), SPS (33), PPS (34) and a prefix SEI (39) before the IDR slice (20). hvcC carries the parameter sets as well. | 33 | 38,070 | ftyp 0 (28); free 28 (8); mdat 36 (34,086); moov 34,122 (3,948). 60 samples, keyframes at samples 1 and 28. Sample 1 is 4,941 B against 2,522 B in hevc.mp4: NAL sizes 24, 43, 7, 2,329 and 2,518. | hevc.mp4 recipe with `-tag:v hev1` and `repeat-headers=1` |
@@ -69,7 +72,7 @@ walk.py is the moov kit's one-video-track teaching parser. Building it out is wh
 
 | file | walk.py | why |
 |---|---|---|
-| f1, f2, phone, phone-fast, subs, rotated, broken-stco, hevc, hevc-hev1, av1, hdr | parses | It reads only the first `mdhd`/`stbl` tables it meets, which belong to the video track. In phone, subs and the other multi-track files, the audio and subtitle tracks are silently ignored. |
+| f1, f2, phone, phone-fast, subs, phone-chapters, rotated, broken-stco, hevc, hevc-hev1, av1, hdr | parses | It reads only the first `mdhd`/`stbl` tables it meets, which belong to the video track. In phone, subs, phone-chapters and the other multi-track files, the audio, subtitle and chapter tracks are silently ignored. |
 | aac-only.m4a | parses | The single track is audio. walk.py reads its tables as if they were video. |
 | cenc.mp4 | parses the tables | It does not step into the `encv`/`enca` sample entries (sinf, tenc), does not read senc, and its "frame bytes" are ciphertext. |
 | frag-cmaf.mp4 | **does not parse** | `ValueError: moof at 1242: one traf with one trun expected`. Each CMAF moof here carries two trafs, one per track. |

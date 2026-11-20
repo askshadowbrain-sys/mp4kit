@@ -6,10 +6,12 @@ start?) and stsz (How big is each sample?). Episode 16: the five lookups as code
 from its five drawers (Sample, sample_table). Episode 17: ctts, the second-clock slip in the time drawer: each
 sample's composition time, its decode time plus the slip (read_ctts). Episode 18: edts/elst, the timer at the
 corridor's entrance (read_elst). Episode 21: the sound corridor's sheet, mp4a (read_audio_entry). Episode 22: the
-roll slip, a sample group: its entries (sgpd) and the runs of samples it covers (sbgp)."""
+roll slip, a sample group: its entries (sgpd) and the runs of samples it covers (sbgp). Episode 23: many tracks, each
+corridor read whole (Track, read_tracks), and the signposts between corridors (read_tref)."""
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from . import audio  # noqa: F401  (registers esds, so a sound track's entry carries it)
 from . import boxes
 from . import nal
 from . import timing
@@ -383,3 +385,49 @@ def sample_table(data, trak):
             samples.append(Sample(n, times[n - 1], cts[n - 1], sizes[n - 1], offset, sync is None or n in sync))
             offset = offset + sizes[n - 1]
     return samples
+
+
+def read_tref(data, box):
+    """The signposts (tref): one box per reference type (chap, subt, hint, ...), each a list of track_IDs, the tracks
+    this one points at. A signpost points one way: the track it names holds no sign back."""
+    return {ref.type: [boxes.u32(data, at) for at in range(ref.payload, ref.end, 4)] for ref in box.children}
+
+
+boxes.DECODERS["tref"] = read_tref
+
+
+@dataclass
+class Track:
+    """One corridor, read whole: its track_ID (tkhd), what it holds (hdlr), its clock (mdhd timescale), its tray's
+    first sheet as a dict (the sample entry's type and fields, and each box inside it: avcC, esds), every sample
+    (sample_table), its entrance timer (elst), its signposts (tref) and its length on its own clock (mdhd)."""
+    id: int
+    handler: str
+    timescale: int
+    entry: dict
+    samples: list
+    elst: list
+    tref: dict = field(default_factory=dict)
+    duration: int = 0
+
+
+def _entry(data, stsd):
+    """The tray's first sheet as a dict: {"type": "avc1", its fields, "avcC": {...}, ...}; a type with no reader
+    (tx3g, text) gives only its type."""
+    box = read_stsd(data, stsd)[0]
+    entry = {"type": box.type, **boxes.decode(data, box)}
+    entry.update({child.type: boxes.decode(data, child) for child in box.children})
+    return entry
+
+
+def read_tracks(data, tree):
+    """Every corridor in the map room, in file order, each a Track. Trains Make Many Stops: trak, mdia, minf, stbl."""
+    tracks = []
+    for trak in boxes.find_all(tree, "moov/trak"):
+        mdhd, tref = read_mdhd(data, boxes.find(trak.children, "mdia/mdhd")), boxes.find(trak.children, "tref")
+        tracks.append(Track(read_tkhd(data, boxes.find(trak.children, "tkhd"))["track_ID"],
+                            read_hdlr(data, boxes.find(trak.children, "mdia/hdlr"))["handler_type"],
+                            mdhd["timescale"], _entry(data, boxes.find(trak.children, "mdia/minf/stbl/stsd")),
+                            sample_table(data, trak), read_elst(data, boxes.find(trak.children, "edts/elst")),
+                            read_tref(data, tref) if tref else {}, mdhd["duration"]))
+    return tracks

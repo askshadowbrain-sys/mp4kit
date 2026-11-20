@@ -30,6 +30,7 @@ cmd_for() {
     ep20) echo 'python3 -m mp4kit dump testfiles/out/phone.mp4 --pcm' ;;
     ep21) echo 'python3 -m mp4kit dump testfiles/out/aac-only.m4a --find esds' ;;
     ep22) echo 'python3 -m mp4kit dump testfiles/out/aac-only.m4a --find elst' ;;
+    ep23) echo 'python3 -m mp4kit extract testfiles/out/phone.mp4 --track 2 -o "$TMPOUT/phone.aac"' ;;
     *) return 1 ;;
   esac
 }

@@ -34,6 +34,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep20 | audio.py +42 (new), cli.py +52/-6 | 60 | ~23 | `cli._sound_tracks` 14 (18), `cli._print_pcm` 13 (16), `audio.split_adts` 12 (15), `cli._dump_view` 6 (8), `audio.adts_header` 3 (7); `cli.cmd_dump` drops from 15 to 12 (its view choice moved to `_dump_view`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame` and `cli._frame_route` 15 overall |
 | ep21 | audio.py +59/-1, cli.py +6/-5, tables.py +16/-1 | 48 | ~28 | `audio.read_esds` 14 (18), `audio.read_descriptor` 6 (10), `audio.parse_asc` 6 (10), `tables.read_audio_entry` 5 (10), `audio._open` 5 (7); `cli._sound_tracks` goes from 14 to 15 (its two raw reads become `read_audio_entry`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route` and `cli._sound_tracks` 15 overall |
 | ep22 | audio.py +30/-1, cli.py +28/-5, tables.py +36/-1 | 55 | ~12 | `cli._print_priming` 14 (18), `tables.read_sgpd` 12 (16), `tables.read_sbgp` 7 (11), `audio.asc_bytes` 4 (8), `audio.edit_window` 4 (8), `audio.priming` 1 (5); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route` and `cli._sound_tracks` 15 overall |
+| ep23 | boxes.py +1/-1, cli.py +81/-1, nal.py +14/-1, tables.py +50/-2 | 93 | ~34 | `cli.cmd_extract` 15 (19), at the limit, `tables.read_tracks` 9 (11), `cli._srt_track` 8 (11), `cli._plain_stream` 7 (9), `nal.annexb_sample` 6 (10), `cli._annexb_track` 5 (7), `tables._entry` 4 (7), `cli._adts_track` 3 (5), `cli._srt_time` 2 (4), `tables.read_tref` 1 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route` and `cli._sound_tracks` 15 overall |
 
 ## Functions over 15 lines
 
@@ -469,4 +470,51 @@ arithmetic became `picture_size`, so its body is 12 lines.
     by shifts, `parse_asc` backwards); `read_sgpd`'s roll entry (`ff ff` signed).
   - **On-screen trim:** show `read_sbgp`, the registration, `read_sgpd`'s version and length guards,
     `_print_priming` and the `cli` changes as finished code (ep10's pattern); type the rest (about 22 lines).
+- **ep23 (93, plan ~34).** The plan's three names come to 43 code lines: `tables.Track` 10 (the dataclass line, its
+  decorator and 8 fields), `tables.read_tracks` 10, `cli.cmd_extract` 16, `_add_extract` 6 and `main`'s tuple 1.
+  `Track` keeps the plan's six fields in the plan's order (`id, handler, timescale, entry, samples, elst`), so
+  episodes 24, 25, 29 and 32 can build one positionally, and adds two with defaults: `tref` (the signposts,
+  `{}` when none) and `duration` (mdhd's, in the track's ticks: the last text cue's end). `entry` is a dict:
+  `"type"` (avc1, mp4a, tx3g, text, encv, ...), the sample entry's fields from its registered reader, and one key
+  per box inside it (`"avcC"`, `"esds"`, `"pasp"`, `"btrt"`), each that box's fields. The other 50:
+  - **The signposts (4):** `tables.read_tref` (2) and its registration (1); `tref` joins `boxes.CONTAINERS` (1),
+    so walk opens it (ffprobe's trace names `chap` with parent `tref`; test_ep09's trace and CONTAINERS checks
+    change with it) and dump prints `tref 109030 20 chap=[3]` with its `chap` child.
+  - **The tray as a dict (7):** `tables._entry` (5); tables.py imports `field` and `audio` (2: audio registers
+    esds, so a sound track's entry carries its ASC).
+  - **Annex B as ffmpeg writes it (13):** `nal.annexb_sample` (7) and `cli._annexb_track` (6). ep19's
+    `_annexb_samples` writes SPS and PPS once and 4-byte start codes everywhere; ffmpeg's `h264_mp4toannexb`
+    puts SPS and PPS in front of **each keyframe's** IDR slice and gives a NAL unit a 4-byte start code only
+    when it opens the sample (and for SPS/PPS), 3 bytes otherwise. With that rule the extract is ffmpeg's
+    stream byte for byte (phone: the samples' 84,349 B are 84,105 B of NAL units + 61 length labels of 4; the
+    stream is 84,105 + 2 x (SPS 26 + PPS 6) + 63 start codes of 4 + 2 of 3 = 84,427 B). ep19's `frame` output is unchanged (expected/ep19.txt).
+  - **ADTS (4):** `cli._adts_track`: ep20's `adts_header` on ep21's `parse_asc` of the esds ASC.
+  - **SRT for the text corridors (14):** `cli._srt_track` (9), `cli._srt_time` (3), `WRITERS` (2). A tx3g or
+    QuickTime `text` sample is a 2-byte length and that many bytes of text; empty ones (subs' gap at 0.9 s and its
+    zero-length tail) get no cue, which is also what ffmpeg's `-c:s srt` writes (87 B, identical).
+  - **`cli._plain_stream` (8):** the two refusals (no such track; no writer for the entry type, or no samples:
+    encv/enca, hvc1/hev1/av01, frag-cmaf's empty moov) as `ValueError`, so `cmd_extract` stays at 15.
+  - **Earlier tests:** phone-chapters.mp4 is the 17th test file (committed with this tag; NEW-B1 cd2f05b6).
+    test_ep09 counts 17 files and lists `tref` in CONTAINERS; test_ep13's sample-entry kinds gain `text`;
+    test_ep17 and test_ep18 skip phone-chapters' track 3, for which ffprobe lists no packets (it reads the
+    track as chapters).
+  - **The numbers:** subs 3 tracks (vide avc1 60, soun mp4a 95, sbtl tx3g 4: stsz's 4, ffprobe's nb_frames 4,
+    3 packets listed); phone-chapters 3 tracks (text text 2, 17 B each, tkhd flags 2), `tref` `00000014 74726566
+    0000000c 63686170 00000003` at 109,030 and 110,504; the extracts of phone (84,427 / 25,012 B), f1, f2,
+    aac-only, subs' SRT (87 B) and every phone copy (fast, large, rotated, subs, chapters) are ffmpeg's bytes;
+    the stream from keyframe 31 is the full stream's tail from byte 41,676.
+  - **Not done here:** only the first sample entry is read (a sample's stsc sample_description_index is
+    ignored); `extract` writes H.264, AAC and text only (HEVC, AV1 and the encrypted entries are refused, not
+    written: episode 33 for hvcC/av1C); a NAL length that runs past its sample is not checked (broken-stco's
+    track 1 extracts to 292,817 B of garbage where ffmpeg reports `Invalid NAL unit size`: episode 36's
+    `check.nal_lengths`); in-band SPS/PPS before an IDR are not detected (ffmpeg then inserts none; no
+    committed H.264 file has them); SRT times are the samples' decode times without the edit list (subs' and
+    phone-chapters' text elst start at media_time 0); text is read as UTF-8 (the chapter samples' `encd` box says
+    256, UTF-8) and tx3g style records after the text are ignored; a fragmented file has no samples in its moov
+    (episode 31 extends `read_tracks`).
+  - **Blocks the Build-it scene shows:** `Track` (the fields); `read_tracks` (Trains Make Many Stops, once per
+    trak); `read_tref` (one way: a list of track_IDs); `annexb_sample` (where SPS/PPS go and why: the keyframe);
+    `_adts_track` (one line: ep20 + ep21); `cmd_extract`'s listing.
+  - **On-screen trim:** show `_entry`, `_plain_stream`, `_srt_track`, `_srt_time`, `WRITERS`, `_add_extract` and
+    the imports as finished code (ep10's pattern); type the rest (about 45 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

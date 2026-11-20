@@ -1,0 +1,830 @@
+{
+ "size": 112810,
+ "boxes": [
+  {
+   "path": "/ftyp",
+   "type": "ftyp",
+   "start": 0,
+   "size": 32
+  },
+  {
+   "path": "/free",
+   "type": "free",
+   "start": 32,
+   "size": 8
+  },
+  {
+   "path": "/mdat",
+   "type": "mdat",
+   "start": 40,
+   "size": 108738
+  },
+  {
+   "path": "/moov",
+   "type": "moov",
+   "start": 108778,
+   "size": 4032
+  },
+  {
+   "path": "/moov/mvhd",
+   "type": "mvhd",
+   "start": 108786,
+   "size": 108
+  },
+  {
+   "path": "/moov/trak",
+   "type": "trak",
+   "start": 108894,
+   "size": 1474
+  },
+  {
+   "path": "/moov/trak/tkhd",
+   "type": "tkhd",
+   "start": 108902,
+   "size": 92
+  },
+  {
+   "path": "/moov/trak/edts",
+   "type": "edts",
+   "start": 108994,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/edts/elst",
+   "type": "elst",
+   "start": 109002,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/tref",
+   "type": "tref",
+   "start": 109030,
+   "size": 20
+  },
+  {
+   "path": "/moov/trak/mdia",
+   "type": "mdia",
+   "start": 109050,
+   "size": 1318
+  },
+  {
+   "path": "/moov/trak/mdia/mdhd",
+   "type": "mdhd",
+   "start": 109058,
+   "size": 32
+  },
+  {
+   "path": "/moov/trak/mdia/hdlr",
+   "type": "hdlr",
+   "start": 109090,
+   "size": 45
+  },
+  {
+   "path": "/moov/trak/mdia/minf",
+   "type": "minf",
+   "start": 109135,
+   "size": 1233
+  },
+  {
+   "path": "/moov/trak/mdia/minf/vmhd",
+   "type": "vmhd",
+   "start": 109143,
+   "size": 20
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf",
+   "type": "dinf",
+   "start": 109163,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref",
+   "type": "dref",
+   "start": 109171,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref/url ",
+   "type": "url ",
+   "start": 109187,
+   "size": 12
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl",
+   "type": "stbl",
+   "start": 109199,
+   "size": 1169
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd",
+   "type": "stsd",
+   "start": 109207,
+   "size": 193
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/avc1",
+   "type": "avc1",
+   "start": 109223,
+   "size": 177
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/avc1/avcC",
+   "type": "avcC",
+   "start": 109309,
+   "size": 55
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/avc1/pasp",
+   "type": "pasp",
+   "start": 109364,
+   "size": 16
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/avc1/btrt",
+   "type": "btrt",
+   "start": 109380,
+   "size": 20
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stts",
+   "type": "stts",
+   "start": 109400,
+   "size": 24
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stss",
+   "type": "stss",
+   "start": 109424,
+   "size": 24
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/ctts",
+   "type": "ctts",
+   "start": 109448,
+   "size": 368
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsc",
+   "type": "stsc",
+   "start": 109816,
+   "size": 40
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsz",
+   "type": "stsz",
+   "start": 109856,
+   "size": 260
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stco",
+   "type": "stco",
+   "start": 110116,
+   "size": 252
+  },
+  {
+   "path": "/moov/trak",
+   "type": "trak",
+   "start": 110368,
+   "size": 1801
+  },
+  {
+   "path": "/moov/trak/tkhd",
+   "type": "tkhd",
+   "start": 110376,
+   "size": 92
+  },
+  {
+   "path": "/moov/trak/edts",
+   "type": "edts",
+   "start": 110468,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/edts/elst",
+   "type": "elst",
+   "start": 110476,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/tref",
+   "type": "tref",
+   "start": 110504,
+   "size": 20
+  },
+  {
+   "path": "/moov/trak/mdia",
+   "type": "mdia",
+   "start": 110524,
+   "size": 1645
+  },
+  {
+   "path": "/moov/trak/mdia/mdhd",
+   "type": "mdhd",
+   "start": 110532,
+   "size": 32
+  },
+  {
+   "path": "/moov/trak/mdia/hdlr",
+   "type": "hdlr",
+   "start": 110564,
+   "size": 45
+  },
+  {
+   "path": "/moov/trak/mdia/minf",
+   "type": "minf",
+   "start": 110609,
+   "size": 1560
+  },
+  {
+   "path": "/moov/trak/mdia/minf/smhd",
+   "type": "smhd",
+   "start": 110617,
+   "size": 16
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf",
+   "type": "dinf",
+   "start": 110633,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref",
+   "type": "dref",
+   "start": 110641,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref/url ",
+   "type": "url ",
+   "start": 110657,
+   "size": 12
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl",
+   "type": "stbl",
+   "start": 110669,
+   "size": 1500
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd",
+   "type": "stsd",
+   "start": 110677,
+   "size": 126
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/mp4a",
+   "type": "mp4a",
+   "start": 110693,
+   "size": 110
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stts",
+   "type": "stts",
+   "start": 110803,
+   "size": 32
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsc",
+   "type": "stsc",
+   "start": 110835,
+   "size": 628
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsz",
+   "type": "stsz",
+   "start": 111463,
+   "size": 400
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stco",
+   "type": "stco",
+   "start": 111863,
+   "size": 252
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/sgpd",
+   "type": "sgpd",
+   "start": 112115,
+   "size": 26
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/sbgp",
+   "type": "sbgp",
+   "start": 112141,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak",
+   "type": "trak",
+   "start": 112169,
+   "size": 539
+  },
+  {
+   "path": "/moov/trak/tkhd",
+   "type": "tkhd",
+   "start": 112177,
+   "size": 92
+  },
+  {
+   "path": "/moov/trak/edts",
+   "type": "edts",
+   "start": 112269,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/edts/elst",
+   "type": "elst",
+   "start": 112277,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia",
+   "type": "mdia",
+   "start": 112305,
+   "size": 403
+  },
+  {
+   "path": "/moov/trak/mdia/mdhd",
+   "type": "mdhd",
+   "start": 112313,
+   "size": 32
+  },
+  {
+   "path": "/moov/trak/mdia/hdlr",
+   "type": "hdlr",
+   "start": 112345,
+   "size": 48
+  },
+  {
+   "path": "/moov/trak/mdia/minf",
+   "type": "minf",
+   "start": 112393,
+   "size": 315
+  },
+  {
+   "path": "/moov/trak/mdia/minf/gmhd",
+   "type": "gmhd",
+   "start": 112401,
+   "size": 76
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf",
+   "type": "dinf",
+   "start": 112477,
+   "size": 36
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref",
+   "type": "dref",
+   "start": 112485,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia/minf/dinf/dref/url ",
+   "type": "url ",
+   "start": 112501,
+   "size": 12
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl",
+   "type": "stbl",
+   "start": 112513,
+   "size": 195
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd",
+   "type": "stsd",
+   "start": 112521,
+   "size": 95
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsd/text",
+   "type": "text",
+   "start": 112537,
+   "size": 79
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stts",
+   "type": "stts",
+   "start": 112616,
+   "size": 24
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsc",
+   "type": "stsc",
+   "start": 112640,
+   "size": 28
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stsz",
+   "type": "stsz",
+   "start": 112668,
+   "size": 20
+  },
+  {
+   "path": "/moov/trak/mdia/minf/stbl/stco",
+   "type": "stco",
+   "start": 112688,
+   "size": 20
+  },
+  {
+   "path": "/moov/udta",
+   "type": "udta",
+   "start": 112708,
+   "size": 102
+  }
+ ],
+ "timescale": 15360,
+ "stts": [
+  [
+   60,
+   512
+  ]
+ ],
+ "ctts": [
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   1024
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   1,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   2048
+  ],
+  [
+   2,
+   512
+  ],
+  [
+   1,
+   1536
+  ],
+  [
+   1,
+   512
+  ]
+ ],
+ "stss": [
+  1,
+  31
+ ],
+ "stsc": [
+  [
+   1,
+   2,
+   1
+  ],
+  [
+   2,
+   1,
+   1
+  ]
+ ],
+ "stco": [
+  82,
+  8283,
+  9830,
+  11242,
+  13319,
+  14886,
+  16031,
+  18179,
+  19313,
+  21522,
+  22937,
+  24124,
+  26393,
+  27688,
+  29063,
+  30903,
+  32471,
+  33689,
+  35844,
+  37417,
+  38551,
+  40837,
+  42119,
+  43581,
+  45576,
+  47181,
+  48585,
+  50507,
+  52019,
+  53240,
+  60266,
+  62703,
+  64159,
+  65220,
+  67359,
+  68880,
+  70053,
+  71900,
+  73048,
+  75138,
+  76258,
+  78272,
+  79669,
+  81514,
+  83043,
+  84339,
+  86703,
+  88090,
+  89637,
+  91635,
+  93318,
+  94911,
+  96884,
+  98590,
+  99824,
+  101964,
+  103350,
+  104838,
+  106605
+ ],
+ "stsz": [
+  5824,
+  2139,
+  1040,
+  947,
+  1792,
+  1056,
+  880,
+  1633,
+  885,
+  1711,
+  877,
+  911,
+  1745,
+  1049,
+  913,
+  1571,
+  1039,
+  951,
+  1656,
+  1070,
+  855,
+  1769,
+  1040,
+  918,
+  1737,
+  1102,
+  872,
+  1683,
+  980,
+  992,
+  6517,
+  2184,
+  933,
+  812,
+  1640,
+  956,
+  935,
+  1358,
+  883,
+  1584,
+  850,
+  1501,
+  873,
+  1593,
+  1024,
+  1016,
+  1873,
+  1133,
+  1022,
+  1740,
+  1166,
+  1107,
+  1702,
+  1196,
+  980,
+  1640,
+  1123,
+  983,
+  1238,
+  1150
+ ],
+ "elst": [
+  [
+   96000,
+   1024,
+   1,
+   0
+  ]
+ ],
+ "chunks": [
+  2,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1
+ ]
+}

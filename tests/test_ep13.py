@@ -50,7 +50,8 @@ class Ep13(unittest.TestCase):
                     entries = tables.read_stsd(contents, stsd)
                     self.assertEqual(len(entries), 1)
                     kinds.add(entries[0].type)
-        self.assertEqual(kinds, {"avc1", "encv", "hvc1", "hev1", "av01", "mp4a", "enca", "tx3g"})
+        self.assertEqual(kinds, {"avc1", "encv", "hvc1", "hev1", "av01", "mp4a", "enca", "tx3g",
+                                 "text"})                     # text: phone-chapters.mp4's chapter track (ep23)
 
     def test_read_stsd_count_mismatch(self):
         blob = bytearray(PHONE[109153:109153 + 193])

@@ -1,7 +1,8 @@
 """H.264 elementary stream. Episode 2: length labels in mdat. Episode 3: NAL header, types, bit reader.
 Episode 4: SPS, PPS, picture size, slice headers.
 Episode 5: Annex B start codes, AVCC length labels, emulation prevention (rbsp).
-Episode 17: access units (one picture's NAL units), and the slice header's picture order count."""
+Episode 17: access units (one picture's NAL units), and the slice header's picture order count.
+Episode 23: one sample in Annex B the way ffmpeg's h264_mp4toannexb writes it (annexb_sample)."""
 
 
 def iter_length_prefixed(data, start, end, length_size=4):
@@ -38,6 +39,18 @@ def split_annexb(stream):
 def to_annexb(nals):
     """Join NAL units into an Annex B stream, each behind a 4-byte start code."""
     return b"".join(b"\x00\x00\x00\x01" + n for n in nals)
+
+
+def annexb_sample(units, params):
+    """One sample's NAL units as ffmpeg's h264_mp4toannexb writes them: the parameter sets (SPS, PPS) go in front of
+    its first IDR slice (type 5), and each unit gets a start code, 00 00 00 01 for the first in the sample and the
+    parameter sets, 00 00 01 for the rest. Only a keyframe needs the sets, so a cut that starts there can play."""
+    out = b""
+    for unit in units:
+        if unit[0] & 0x1F == 5 and params:
+            out, params = out + to_annexb(params), []
+        out = out + (b"\x00\x00\x01" if out else b"\x00\x00\x00\x01") + unit
+    return out
 
 
 def to_avcc(nals, length_size=4):

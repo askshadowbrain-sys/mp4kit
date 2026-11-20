@@ -95,7 +95,7 @@ def decode(data, box):
 
 
 CONTAINERS = {"moov", "trak", "mdia", "minf", "stbl", "dinf", "edts", "udta", "mvex", "moof", "traf", "mfra",
-              "sinf", "schi"}
+              "sinf", "schi", "tref"}
 CHILD_OFFSET = {"stsd": 8, "dref": 8, "meta": 4, "avc1": 78, "hvc1": 78, "hev1": 78, "av01": 78, "encv": 78,
                 "mp4a": 28, "enca": 28}
 

@@ -34,14 +34,14 @@ class Ep09(unittest.TestCase):
 
     def test_walk_reads_every_test_file(self):
         files = sorted(OUT.glob("*.mp4")) + sorted(OUT.glob("*.m4a"))
-        self.assertEqual(len(files), 16)
+        self.assertEqual(len(files), 17)          # phone-chapters.mp4 joined at ep23
         for f in files:
             with self.subTest(f=f.name):
                 self.assertEqual(run_cli_code("dump", str(f))[0], 0)
 
     def test_tables(self):
         self.assertEqual(boxes.CONTAINERS, {"moov", "trak", "mdia", "minf", "stbl", "dinf", "edts", "udta", "mvex",
-                                            "moof", "traf", "mfra", "sinf", "schi"})
+                                            "moof", "traf", "mfra", "sinf", "schi", "tref"})   # tref: ep23
         self.assertEqual(boxes.CHILD_OFFSET, {"stsd": 8, "dref": 8, "meta": 4, "avc1": 78, "hvc1": 78, "hev1": 78,
                                               "av01": 78, "encv": 78, "mp4a": 28, "enca": 28})
 
