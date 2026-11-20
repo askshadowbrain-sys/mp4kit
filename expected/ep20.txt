@@ -1,0 +1,5 @@
+track 2 soun mp4a: 48000 samples/s (mdhd), channelcount 2, samplesize 16
+95 AAC frames (stsz) of 1024 samples, each 21.3 ms
+raw PCM: 2 s (tkhd) x 48000 x 2 channels x 2 bytes = 384000 bytes
+AAC in the file: 24347 bytes (stsz), 15.8 times smaller
+one second: 192000 bytes of PCM, 12174 of AAC; AAC saves 179826 bytes

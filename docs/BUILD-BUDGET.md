@@ -31,6 +31,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep17 | cli.py +13/-5, nal.py +23/-2, tables.py +32/-5, timing.py +9/-1 | 41 | ~21 | `nal.access_units` 11 (15), `tables._clocks` 7 (10), `tables.read_ctts` 4 (8), `timing.composition_times` 2 (5), `cli._time_columns` 2 (4); `nal.read_slice_header` 13 (16) with its POC branch; `tables.sample_table` 15 (20) and `cli.cmd_samples` 14 (18) keep their ep16 bodies; `boxes.read_header`, `tables.read_mvhd`, `cli.cmd_dump` and `tables.sample_table` 15 overall |
 | ep18 | cli.py +17/-7, tables.py +17/-1, timing.py +15/-1 | 27 | ~14 | `cli._time_columns` 10 (13), `timing.presentation_times` 6 (11), `tables.read_elst` 4 (9); `cli.cmd_samples` 14 (19) keeps its ep16 body (its docstring is a line longer); `boxes.read_header`, `tables.read_mvhd`, `cli.cmd_dump` and `tables.sample_table` 15 overall |
 | ep19 (finale) | boxes.py +8/-2, cli.py +76/-1, timing.py +21/-1 | 72 | ~25 (finale ≤ ~90) | `cli.cmd_frame` 15 (21) and `cli._frame_route` 15 (18), both at the limit, `cli._annexb_samples` 8 (11), `timing.sync_before` 6 (9), `timing.sample_at` 4 (7), `cli._print_route` 4 (7), `boxes.read_mp4` 4 (8); `boxes.read_header`, `tables.read_mvhd`, `cli.cmd_dump` and `tables.sample_table` 15 overall |
+| ep20 | audio.py +42 (new), cli.py +52/-6 | 60 | ~23 | `cli._sound_tracks` 14 (18), `cli._print_pcm` 13 (16), `audio.split_adts` 12 (15), `cli._dump_view` 6 (8), `audio.adts_header` 3 (7); `cli.cmd_dump` drops from 15 to 12 (its view choice moved to `_dump_view`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame` and `cli._frame_route` 15 overall |
 
 ## Functions over 15 lines
 
@@ -363,4 +364,37 @@ arithmetic became `picture_size`, so its body is 12 lines.
     last keyframe at or before n); `cmd_frame`'s three lookups inside its `try`; `_annexb_samples`.
   - **On-screen trim:** show `_frame_route`'s two checks, `_print_route`, `read_mp4`'s mmap and `_add_frame` as
     finished code (ep10's pattern); type the rest (about 35 lines).
+- **ep20 (60, plan ~23).** The plan's five names come to 22 code lines in the new `audio.py`: `SAMPLE_RATES` 1,
+  `pcm_bytes` 2, `frame_seconds` 2, `adts_header` 4 and `split_adts` 13. The extra 38 are `dump --pcm` in `cli`
+  (plan 4.1: "`--pcm` (20)"), which the plan's estimate did not count:
+  - `_sound_tracks` (15): each soun track (hdlr) with samples in its stsz: the sample rate from its mdhd clock
+    (ep12; the corridor's clock is the sample rate, 48,000 and 44,100), channelcount and samplesize as the sample
+    entry's two u16s at 16 and 18 of its fields (episode 21's `read_audio_entry` reads the whole entry and replaces
+    those two reads), its length from tkhd on the movie clock (ep11/ep10: 96,000 / 48,000 = 2 s, ffprobe's
+    duration_ts 96,000) and its sizes (ep15's `read_stsz`).
+  - `_print_pcm` (14): the five lines (expected/ep20.txt). The 2 s is the track's presented length, the edit
+    list already applied, so `pcm_bytes(2, 48000, 2, 16)` = 384,000 is exactly what ffmpeg decodes
+    (`ffmpeg -i phone.mp4 -map 0:a -f s16le - | wc -c` → 384000; aac-only → 176400). All 95 frames decode to
+    95 x 1,024 = 97,280 samples (389,120 bytes; mdhd's 97,024 ticks would be 388,096); ffmpeg drops the 1,024
+    priming samples and the last frame's 256 trimmed ones (stts's 768), leaving 96,000 (episode 22). One second: 192,000 bytes of PCM against 24,347 / 2 = 12,174 bytes of AAC
+    on average (round half even: aac-only's 8,220.5 prints 8220). esds's avgBitrate 96,360 bit/s (12,045 B/s)
+    divides by mdhd's 2.0213 s, priming included; the line divides by the presented 2 s.
+  - `_dump_view` (7, 4 of them moved): `cmd_dump`'s view choice (tree, `--find`, `--pcm`) as its own function,
+    because a third branch would take `cmd_dump` to 17; episodes 22 and 28 add their views here too.
+  - the `--pcm` argparse line (1) and `cmd_dump`'s call (1).
+  - **ADTS byte for byte:** phone's 95 samples and aac-only's 88, each behind `adts_header`, equal ffmpeg's
+    `-c:a copy -f adts` output exactly (25,012 and 17,057 bytes; the test pins their SHA-256 and the first
+    headers `fff14c801ebffc` and `fff1504021fffc`). ffmpeg keeps the priming frame in the ADTS stream: no timer
+    survives (episode 22's "where it breaks"). `split_adts` gives back the same payloads and the same fields dict
+    (`audioObjectType`, `samplingFrequencyIndex`, `channelConfiguration`: the names `parse_asc` and `asc_bytes`
+    use in episodes 21 and 22); a 9-byte header (CRC present) is tested on hand-packed bytes.
+  - **Not done here:** the frame length is AAC-LC's 1,024 for every soun track (frameLengthFlag, 960, is in the
+    AudioSpecificConfig, episode 21); `split_adts` takes the first header's fields and does not check the CRC or
+    that later headers agree; only the first sample entry is read; a fragmented file's sound has no samples in
+    its stsz (frag-cmaf: `no sound track with samples`, episode 30); the ADTS asc dict is written by hand in the
+    test (episode 21 reads it from esds).
+  - **Blocks the Build-it scene shows:** `pcm_bytes` (the multiplication); `frame_seconds`; `adts_header` (the
+    56-bit field layout); `split_adts` (jump by frame length); `_print_pcm`'s five lines.
+  - **On-screen trim:** show `_sound_tracks`, `_dump_view`, `SAMPLE_RATES` and the argparse line as finished
+    code (ep10's pattern); type the rest (about 36 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

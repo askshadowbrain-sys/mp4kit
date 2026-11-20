@@ -83,23 +83,68 @@ def cmd_boxes(args):
 
 
 def cmd_dump(args):
-    """`dump FILE [--find TYPE]`: print the box tree, indented by depth, or only the boxes of one type by their
-    path; each with any decoded fields."""
+    """`dump FILE [--find TYPE] [--pcm]`: print the box tree, indented by depth, or only the boxes of one type by
+    their path, each with any decoded fields; or, with --pcm, each sound track's PCM arithmetic."""
     from . import boxes
     from . import tables  # noqa: F401  (importing it registers its readers in boxes.DECODERS)
     data = boxes.read_mp4(args.file)
     try:
         tree = boxes.walk(data)
-        if args.find is None:
-            _print_tree(data, tree, 0)
-        elif _print_found(data, tree, args.find, "") == 0:
-            print(f"no {args.find} box")
+        _dump_view(data, tree, args)
     except boxes.BoxError as e:
         print(f"error: {e}")
         return 1
     if not any(b.type == "moov" for b in tree):
         print("no moov box")
     return 0
+
+
+def _dump_view(data, tree, args):
+    """What dump prints: the box tree, the boxes of one type (--find), or the sound arithmetic (--pcm)."""
+    if args.pcm:
+        _print_pcm(data, tree)
+    elif args.find is None:
+        _print_tree(data, tree, 0)
+    elif _print_found(data, tree, args.find, "") == 0:
+        print(f"no {args.find} box")
+
+
+def _print_pcm(data, tree):
+    """--pcm, five lines a sound track: its sample rate, channels and bits; its AAC frames of 1,024 samples; what
+    its length would weigh as raw PCM; what its AAC frames weigh (stsz); and the same sums for one second."""
+    from . import audio
+    tracks = _sound_tracks(data, tree)
+    for number, entry, rate, channels, bits, seconds, sizes in tracks:
+        pcm, aac = audio.pcm_bytes(seconds, rate, channels, bits), sum(sizes)
+        second, aac_second = audio.pcm_bytes(1, rate, channels, bits), round(aac / seconds)
+        print(f"track {number} soun {entry}: {rate} samples/s (mdhd), channelcount {channels}, samplesize {bits}")
+        print(f"{len(sizes)} AAC frames (stsz) of 1024 samples, each {audio.frame_seconds(rate) * 1000:.1f} ms")
+        print(f"raw PCM: {seconds:g} s (tkhd) x {rate} x {channels} channel{'s' * (channels != 1)} x {bits // 8} bytes"
+              f" = {pcm} bytes")
+        print(f"AAC in the file: {aac} bytes (stsz), {pcm / aac:.1f} times smaller")
+        print(f"one second: {second} bytes of PCM, {aac_second} of AAC; AAC saves {second - aac_second} bytes")
+    if not tracks:
+        print("no sound track with samples")
+
+
+def _sound_tracks(data, tree):
+    """Each sound track (hdlr soun) with samples in its stsz: its number (from 1, in file order), its sample entry's
+    type, the sample rate (its mdhd clock), channelcount and samplesize (the entry's u16s at 16 and 18 of its fields;
+    episode 21 reads the whole entry), its length in seconds (tkhd, on the movie's clock) and its sample sizes."""
+    from . import boxes, tables, timing
+    found = []
+    for number, trak in enumerate(boxes.find_all(tree, "moov/trak"), 1):
+        if tables.read_hdlr(data, boxes.find(trak.children, "mdia/hdlr"))["handler_type"] != "soun":
+            continue
+        entry = boxes.find(trak.children, "mdia/minf/stbl/stsd").children[0]
+        sizes = tables.read_stsz(data, boxes.find(trak.children, "mdia/minf/stbl/stsz"))
+        rate = tables.read_mdhd(data, boxes.find(trak.children, "mdia/mdhd"))["timescale"]
+        length = tables.read_tkhd(data, boxes.find(trak.children, "tkhd"))["duration"]
+        movie = tables.read_mvhd(data, boxes.find(tree, "moov/mvhd"))["timescale"]
+        if sizes:
+            found.append((number, entry.type, rate, boxes.u16(data, entry.payload + 16),
+                          boxes.u16(data, entry.payload + 18), timing.seconds(length, movie), sizes))
+    return found
 
 
 def cmd_samples(args):
@@ -278,6 +323,7 @@ def _add_dump(sub):
     d = sub.add_parser("dump", help="print the box tree")
     d.add_argument("file", help="the MP4 file to read")
     d.add_argument("--find", metavar="TYPE", help="print only the boxes of this type, by their path")
+    d.add_argument("--pcm", action="store_true", help="each sound track's size as raw PCM against its AAC frames")
     d.set_defaults(func=cmd_dump)
 
 
