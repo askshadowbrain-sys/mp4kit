@@ -343,6 +343,54 @@ WRITERS = {"avc1": ("Annex B", _annexb_track), "mp4a": ("ADTS", _adts_track), "t
            "text": ("SRT", _srt_track)}
 
 
+def cmd_chunks(args):
+    """`chunks FILE`: the basement aisle, drawn. Every chunk in mdat in file order: its offset (stco), track, first
+    sample and sample count (stsc), bytes (stsz), and its start and length in seconds on the movie's timeline (stts,
+    less the edit list's media_time); then each track's totals, and whether mux.interleave's zipper (0.5 s chunks)
+    plans the same order. Tracks count from 1 in file order, chunks and samples from 1."""
+    from . import boxes, mux, tables
+    data = boxes.read_mp4(args.file)
+    try:
+        tracks = tables.read_tracks(data, boxes.walk(data))
+    except boxes.BoxError as e:
+        print(f"error: {e}")
+        return 1
+    chunks = tables.chunk_list(tracks)
+    if not chunks:
+        print(f"error: no chunks: the moov's tables list no samples ({len(tracks)} tracks)")
+        return 1
+    _print_chunks(tracks, chunks)
+    same = mux.interleave(tracks) == [c[1:] for c in chunks]
+    print(f"interleave (0.5 s chunks): {'the same' if same else 'a different'} order")
+    return 0
+
+
+def _print_chunks(tracks, chunks):
+    """The map, one chunk a line; then each track's chunks, samples and bytes, and the fewest and most samples it puts
+    in a chunk."""
+    rows = [(offset, n, first, count, *_chunk_columns(tracks[n - 1], first, count))
+            for offset, n, first, count in chunks]
+    print(f"{len(chunks)} chunks in file order: "
+          + ", ".join(f"track {n} {t.handler} {sum(c[1] == n for c in chunks)}" for n, t in enumerate(tracks, 1)))
+    print("chunk offset track first samples bytes start lasts")
+    for i, row in enumerate(rows, 1):
+        print(i, *row[:5], f"{row[5]:.4f}", f"{row[6]:.4f}")
+    for n, t in enumerate(tracks, 1):
+        counts = [r[3] for r in rows if r[1] == n]
+        print(f"track {n} {t.handler}: {len(counts)} chunks, {len(t.samples)} samples, "
+              f"{sum(r[4] for r in rows if r[1] == n)} bytes, {min(counts, default=0)} to {max(counts, default=0)} "
+              f"samples a chunk")
+
+
+def _chunk_columns(track, first, count):
+    """A chunk's bytes, its start on the movie's timeline in seconds (mux.timeline) and how long its samples last:
+    from its first sample's decode time to the next sample's, or to the track's end (mdhd) after the last sample."""
+    from . import mux
+    samples = track.samples[first - 1:first - 1 + count]
+    end = track.samples[first - 1 + count].dts if first - 1 + count < len(track.samples) else track.duration
+    return sum(s.size for s in samples), float(mux.timeline(track)[first - 1]), (end - samples[0].dts) / track.timescale
+
+
 def _show(value):
     """A field as dump prints it: bytes as hex digits (in a list too), anything else as Python prints it."""
     if isinstance(value, list):
@@ -449,12 +497,19 @@ def _add_extract(sub):
     e.set_defaults(func=cmd_extract)
 
 
+def _add_chunks(sub):
+    """Register the `chunks` command."""
+    c = sub.add_parser("chunks", help="draw the chunk map: which track's chunk comes next in mdat")
+    c.add_argument("file", help="the MP4 file to read")
+    c.set_defaults(func=cmd_chunks)
+
+
 def main(argv: Optional[list] = None) -> int:
     """Parse the command line and run the chosen subcommand."""
     p = argparse.ArgumentParser(prog="mp4kit")
     sub = p.add_subparsers(dest="cmd", required=True)
     for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes, _add_dump, _add_samples,
-                _add_frame, _add_extract):
+                _add_frame, _add_extract, _add_chunks):
         add(sub)
     args = p.parse_args(argv)
     return args.func(args)

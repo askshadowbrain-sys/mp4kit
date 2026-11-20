@@ -25,7 +25,7 @@ def tables_of(contents):
 class Ep16(unittest.TestCase):
     def test_sample_fields(self):
         self.assertEqual([f.name for f in dataclasses.fields(tables.Sample)],
-                         ["number", "dts", "cts", "size", "offset", "key"])
+                         ["number", "dts", "cts", "size", "offset", "key", "chunk"])   # chunk: ep24
 
     def test_sample_table_f1(self):
         samples = tables_of(F1)[0]

@@ -7,7 +7,8 @@ from its five drawers (Sample, sample_table). Episode 17: ctts, the second-clock
 sample's composition time, its decode time plus the slip (read_ctts). Episode 18: edts/elst, the timer at the
 corridor's entrance (read_elst). Episode 21: the sound corridor's sheet, mp4a (read_audio_entry). Episode 22: the
 roll slip, a sample group: its entries (sgpd) and the runs of samples it covers (sbgp). Episode 23: many tracks, each
-corridor read whole (Track, read_tracks), and the signposts between corridors (read_tref)."""
+corridor read whole (Track, read_tracks), and the signposts between corridors (read_tref). Episode 24: the
+basement aisle, every track's chunks in file order (Sample.chunk, chunk_list)."""
 import struct
 from dataclasses import dataclass, field
 
@@ -337,13 +338,16 @@ boxes.DECODERS["sgpd"], boxes.DECODERS["sbgp"] = read_sgpd, read_sbgp
 @dataclass
 class Sample:
     """One sample, as the five drawers give it: its number (from 1), its decode time (dts) and composition time
-    (cts) in the track's ticks, its size in bytes, its byte offset in the file, and whether it is a keyframe."""
+    (cts) in the track's ticks, its size in bytes, its byte offset in the file, and whether it is a keyframe. Episode
+    24: the chunk it sits in (from 1; stsc). Where a muxer put a sample is not part of the sample, so two samples
+    that differ only in their chunk are equal."""
     number: int
     dts: int
     cts: int
     size: int
     offset: int
     key: bool
+    chunk: int = field(default=0, compare=False)
 
 
 def _check_counts(stbl, stts_count, stsc_count, stsz_count):
@@ -379,10 +383,10 @@ def sample_table(data, trak):
     per_chunk = chunk_sizes(stsc, len(offsets))
     _check_counts(stbl, len(times), sum(per_chunk), len(sizes))
     samples = []
-    for offset, count in zip(offsets, per_chunk):
+    for chunk, (offset, count) in enumerate(zip(offsets, per_chunk), 1):
         for _ in range(count):
             n = len(samples) + 1
-            samples.append(Sample(n, times[n - 1], cts[n - 1], sizes[n - 1], offset, sync is None or n in sync))
+            samples.append(Sample(n, times[n - 1], cts[n - 1], sizes[n - 1], offset, sync is None or n in sync, chunk))
             offset = offset + sizes[n - 1]
     return samples
 
@@ -431,3 +435,14 @@ def read_tracks(data, tree):
                             sample_table(data, trak), read_elst(data, boxes.find(trak.children, "edts/elst")),
                             read_tref(data, tref) if tref else {}, mdhd["duration"]))
     return tracks
+
+
+def chunk_list(tracks):
+    """The basement aisle in file order: every chunk of every track as (offset, track, first sample, sample count),
+    sorted by offset. Tracks count from 1 in the list's order, samples from 1 in their track (phone: (48, 1, 1, 2),
+    then (8011, 2, 1, 1)). A chunk's offset is its stco entry, where its first sample starts."""
+    chunks = {}
+    for n, track in enumerate(tracks, 1):
+        for s in track.samples:
+            chunks.setdefault((n, s.chunk), [s.offset, n, s.number, 0])[3] += 1
+    return sorted(tuple(c) for c in chunks.values())

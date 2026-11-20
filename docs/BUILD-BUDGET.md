@@ -35,6 +35,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep21 | audio.py +59/-1, cli.py +6/-5, tables.py +16/-1 | 48 | ~28 | `audio.read_esds` 14 (18), `audio.read_descriptor` 6 (10), `audio.parse_asc` 6 (10), `tables.read_audio_entry` 5 (10), `audio._open` 5 (7); `cli._sound_tracks` goes from 14 to 15 (its two raw reads become `read_audio_entry`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route` and `cli._sound_tracks` 15 overall |
 | ep22 | audio.py +30/-1, cli.py +28/-5, tables.py +36/-1 | 55 | ~12 | `cli._print_priming` 14 (18), `tables.read_sgpd` 12 (16), `tables.read_sbgp` 7 (11), `audio.asc_bytes` 4 (8), `audio.edit_window` 4 (8), `audio.priming` 1 (5); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route` and `cli._sound_tracks` 15 overall |
 | ep23 | boxes.py +1/-1, cli.py +81/-1, nal.py +14/-1, tables.py +50/-2 | 93 | ~34 | `cli.cmd_extract` 15 (19), at the limit, `tables.read_tracks` 9 (11), `cli._srt_track` 8 (11), `cli._plain_stream` 7 (9), `nal.annexb_sample` 6 (10), `cli._annexb_track` 5 (7), `tables._entry` 4 (7), `cli._adts_track` 3 (5), `cli._srt_time` 2 (4), `tables.read_tref` 1 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route` and `cli._sound_tracks` 15 overall |
+| ep24 | cli.py +56/-1, mux.py +28 (new), tables.py +19/-4 | 62 | ~25 | `cli.cmd_chunks` 15 (20), at the limit, `cli._print_chunks` 12 (15), `mux.interleave` 8 (13), `tables.chunk_list` 5 (9), `cli._chunk_columns` 4 (7), `mux.timeline` 2 (6); `tables.sample_table` keeps 15 (its chunk number rides on two existing lines); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks` and `cli.cmd_chunks` 15 overall |
 
 ## Functions over 15 lines
 
@@ -517,4 +518,39 @@ arithmetic became `picture_size`, so its body is 12 lines.
     `_adts_track` (one line: ep20 + ep21); `cmd_extract`'s listing.
   - **On-screen trim:** show `_entry`, `_plain_stream`, `_srt_track`, `_srt_time`, `WRITERS`, `_add_extract` and
     the imports as finished code (ep10's pattern); type the rest (about 45 lines).
+- **ep24 (62, plan ~25).** The plan's three names come to 31 code lines: `tables.chunk_list` 6, `mux.interleave` 9 and
+  `cli.cmd_chunks` 16. `chunk_list(tracks)` keeps the plan's shape, `(offset, track, first sample, sample count)` sorted
+  by offset, tracks counted from 1 in the list's order (phone: `(48, 1, 1, 2)`, `(8011, 2, 1, 1)`, 118 chunks, as the
+  plan says). `interleave(tracks, chunk_seconds=0.5)` keeps its signature and returns `(track, first sample, sample
+  count)` per chunk in mdat order, a pure function of `Track`s that episode 29's `mux.mux` can lay mdat out from (and
+  episode 26's `stsc_rules` can turn into stsc from each track's counts). The other 31:
+  - **Where a sample lies (3):** `Sample.chunk` (1), the chunk number from stsc, filled by `sample_table` (2 changed
+    lines, no new ones: `enumerate` over the chunks). A `Track`'s samples did not say which chunk they sat in, and the
+    chunk cannot be rebuilt from offsets alone (f1's four chunks touch end to start: `[4, 4, 2, 2]` would read as
+    one). It is `compare=False`: where a muxer put a sample is not part of the sample, so episode 29's "read_tracks of
+    the muxed file = the input tracks" can still hold. test_ep16's field list gains `chunk`.
+  - **The movie's timeline (5):** `mux.timeline` (3), each sample's dts less the first real edit's media_time
+    (`audio.priming`, ep22) over the track's clock, as a `Fraction`; `mux.py`'s two imports (2). It is ffprobe's
+    `dts_time` for all 155 of phone's packets, and it is the zipper's key: phone's mdat is every sample sorted by
+    (timeline, track), with no exception. Sorted by the stored dts (no shift) it goes backwards 59 times.
+  - **The printing (22):** `_print_chunks` (13), `_chunk_columns` (5), `_add_chunks` (4) and `main`'s tuple; they keep
+    `cmd_chunks` at 15.
+  - **The numbers:** phone 118 chunks, 59 per track, and they alternate track 1, track 2 at every chunk; video 1–2 samples
+    a chunk (only chunk 1 holds 2), sound 1, 2 or 4 (25, 33 and 1 chunks), a video chunk lasts 1/30 s (chunk 1: 2/30), a
+    sound chunk 1,024 or 2,048 samples (0.0213 or 0.0427 s; the last, 4 samples, 0.0800); mdat's payload (48 to 108,744)
+    is exactly the 118 chunks, no gaps. stco/stsc sorted independently, and ffprobe's packets grouped by `pos`, give the
+    same 118 rows. `interleave` with 0.5 s (or 1 or 2.5) plans phone's exact order, and so for phone-fast, phone-large,
+    rotated, cenc and broken-stco; 0 gives 155 chunks, 0.03 gives 120.
+  - **Where ffmpeg is not the zipper:** a single track is one chunk (aac-only 88, the HEVC/AV1 files 60), where
+    `interleave` cuts every 0.5 s (aac-only: 4 chunks of 22); ffmpeg writes phone-chapters' chapter samples first, at
+    48 (one chunk of 2, before any video); subs' subtitle samples sit where ffmpeg's muxer got them (its empty gap
+    sample, 0.9 s, after the video at 1.0 s), 3 chunks where the zipper plans 4; f1/f2 are minimux's `[4, 4, 2, 2]`.
+    `cmd_chunks` says "a different order" for these.
+  - **Not done here:** empty edits (media_time -1) do not shift a track on the timeline (`audio.priming` skips
+    them; no committed file has one); `interleave` cuts by time only, not by bytes; seek precision is not a chunk
+    property (stss [1, 31]: 59 video chunks start a sample, but a seek to 1.5 s still decodes from sample 31).
+  - **Blocks the Build-it scene shows:** `Sample.chunk` (one field); `chunk_list` (one dict, then sort by offset);
+    `timeline`; `interleave` (sort the teeth, then cut the runs); `cmd_chunks`.
+  - **On-screen trim:** show `_print_chunks`, `_chunk_columns`, `_add_chunks`, the imports and the `sample_table`
+    change as finished code; type the rest (about 35 lines).
 - ep01–ep03 are 6–10 lines over their estimates.
