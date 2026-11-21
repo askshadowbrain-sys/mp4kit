@@ -1,0 +1,6 @@
+before: ftyp 0 32, free 32 8, mdat 40 108704, moov 108744 3412
+after: ftyp 0 32, moov 32 3412, free 3444 8, mdat 3452 108704
+moov 108744 -> 32: every chunk offset + 3412, the moov's size
+track 1 stco: 59 offsets, first 48 -> 3460, last 106571 -> 109983
+track 2 stco: 59 offsets, first 8011 -> 11423, last 107721 -> 111133
+wrote 112156 bytes

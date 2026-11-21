@@ -1,10 +1,11 @@
 """Writing an MP4: the workshop. Episode 24: the zipper, a plan of which track's chunk goes next in mdat (interleave),
 from each sample's decode time on the movie's timeline (timeline). Episode 26: the same drawers, built instead of
-opened: each sample table written back from a track's samples (runs, stsc_rules, table_box, write_stsz, write_stbl)."""
+opened: each sample table written back from a track's samples (runs, stsc_rules, table_box, write_stsz, write_stbl).
+Episode 27: the map room moved next to the front door (faststart, shift_chunk_offsets)."""
 import struct
 from fractions import Fraction
 
-from . import audio, boxes
+from . import audio, boxes, tables
 
 
 def timeline(track):
@@ -80,3 +81,38 @@ def write_stbl(track, stsd, chunk_offsets, chunks):
     drawers += [table_box("stsc", ">III", stsc_rules(chunks)), write_stsz([x.size for x in s]),
                 table_box("co64" if wide else "stco", ">Q" if wide else ">I", [(o,) for o in chunk_offsets])]
     return boxes.box("stbl", *drawers)
+
+
+def shift_chunk_offsets(data, tree, delta):
+    """Every chunk offset of every track (stco, co64) moved by `delta` bytes, in place in `data`, a bytearray holding
+    the boxes of `tree`. phone, by its moov's 3,412: 48 → 3,460, ..., 106,571 → 109,983. An stco offset pushed past
+    4 GiB no longer fits in its 4 bytes: a BoxError (it would need co64, a bigger moov, and so a bigger `delta`)."""
+    for kind, fmt in (("stco", "I"), ("co64", "Q")):
+        for box in boxes.find_all(tree, "moov/trak/mdia/minf/stbl/" + kind):
+            offsets = tables.read_stco(data, box)
+            if kind == "stco" and max(offsets, default=0) + delta > 0xFFFFFFFF:
+                raise boxes.BoxError(f"stco at {box.start}: {max(offsets)} + {delta} is past 4 GiB, it needs co64")
+            struct.pack_into(f">{len(offsets)}{fmt}", data, box.payload + 8, *(o + delta for o in offsets))
+
+
+def faststart(data):
+    """The map room moved next to the front door: the moov cut from behind the mdat and put straight after ftyp, so a
+    player reading from the start meets the plans first. Everything it jumps (free, mdat) moves back by the moov's
+    size, so every chunk offset grows by that size too. A file with no mdat before its moov is given back as it is.
+    Refused (BoxError): no moov; fragments (moof); an mdat after the moov (its chunks would not move); saio (cenc: its
+    offsets point into the moov itself, which moves by another amount)."""
+    tree = boxes.walk(data)
+    kinds = [b.type for b in tree]
+    if "moov" not in kinds:
+        raise boxes.BoxError("no moov: nothing to move")
+    at = kinds.index("moov")
+    if "mdat" not in kinds[:at]:
+        return bytes(data)
+    for bad, why in (("moof" in kinds, "fragments (moof)"), ("mdat" in kinds[at:], "an mdat after the moov"),
+                     (boxes.find_all(tree, "moov/trak/mdia/minf/stbl/saio"), "saio (cenc) offsets into the moov")):
+        if bad:
+            raise boxes.BoxError(f"not moved: {why}")
+    moov, front = tree[at], tree[0].end if kinds[0] == "ftyp" else 0
+    room = bytearray(data[moov.start:moov.end])
+    shift_chunk_offsets(room, boxes.walk(room), moov.size)
+    return bytes(data[:front]) + bytes(room) + bytes(data[front:moov.start]) + bytes(data[moov.end:])

@@ -38,6 +38,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep24 | cli.py +56/-1, mux.py +28 (new), tables.py +19/-4 | 62 | ~25 | `cli.cmd_chunks` 15 (20), at the limit, `cli._print_chunks` 12 (15), `mux.interleave` 8 (13), `tables.chunk_list` 5 (9), `cli._chunk_columns` 4 (7), `mux.timeline` 2 (6); `tables.sample_table` keeps 15 (its chunk number rides on two existing lines); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks` and `cli.cmd_chunks` 15 overall |
 | ep25 | cli.py +58/-1, timing.py +34/-1 | 59 | ~20 | `cli.cmd_packets` 15 (20), at the limit, `timing.packets` 11 (16), `cli._print_packets` 11 (14), `cli._print_streams` 8 (11), `timing.play_order` 1 (4), `timing.reorder_depth` 1 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks` and `cli.cmd_packets` 15 overall |
 | ep26 | boxes.py +15/-1, cli.py +60/-1, mux.py +56/-2 | 79 | ~28 | `cli.cmd_rewrite_check` 15 (19), at the limit, `cli._compare_stbl` 13 (19), `mux.write_stbl` 12 (17), `cli._rewrite_track` 10 (13), `mux.runs` 7 (10), `mux.write_stsz` 3 (6), `boxes.box` 2 (6), `mux.stsc_rules` 1 (5), `mux.table_box` 1 (4), `boxes.full_box` 1 (4); `cli.cmd_samples` keeps 15 (`--rewrite-check` is an argparse `store_const` that swaps `func`, no line in its body); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples` and `cli.cmd_rewrite_check` 15 overall |
+| ep27 | cli.py +44/-1, mux.py +38/-2 | 56 | ~23 | `mux.faststart` 15 (21), at the limit, `cli._print_move` 13 (16), `cli.cmd_faststart` 11 (15), `mux.shift_chunk_offsets` 6 (10), `cli._add_faststart` 4 (6); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check` and `mux.faststart` 15 overall |
 
 ## Functions over 15 lines
 
@@ -610,4 +611,25 @@ arithmetic became `picture_size`, so its body is 12 lines.
     `write_stbl`.
   - **On-screen trim:** show `cmd_rewrite_check`, `_rewrite_track`, `_compare_stbl` and the flag as finished code; type
     the plan's seven (about 34 lines).
+- **ep27 (56, plan ~23).** The plan's three names come to 35 code lines (`mux.shift_chunk_offsets` 7, `mux.faststart`
+  16, `cli.cmd_faststart` 12), 36 with `mux.py`'s import of `tables`. Each keeps the plan's signature.
+  `shift_chunk_offsets(data, tree, delta)` patches every stco and co64 entry in place (the moov's own bytes, so it stays
+  3,412 bytes); `faststart(data)` cuts the moov from behind the mdat and puts it straight after ftyp (ffmpeg's
+  `reserved_header_pos`: before the free box it writes ahead of mdat), so free and mdat move back by the moov's size and
+  every chunk offset grows by the same 3,412. `faststart(phone.mp4)` is `phone-fast.mp4` byte for byte. The other 20
+  are the printing: `_print_move` (14: the top-level boxes before and after, the shift, each track's first and last
+  offset before and after), `_add_faststart` (5) and `main`'s tuple (1).
+  - **The numbers:** phone ftyp 0 (32), free 32 (8), mdat 40 (108,704), moov 108,744 (3,412) → ftyp 0, moov 32, free
+    3,444, mdat 3,452; video's 59 offsets 48 → 3,460 … 106,571 → 109,983, sound's 59 8,011 → 11,423 … 107,721 →
+    111,133; the file stays 112,156 bytes. 13 committed files move (every moov-last file but cenc), each keeping every
+    sample's bytes and times; phone-large's co64 shifts by its 3,884-byte moov and its trailing uuid stays behind.
+  - **What it does not move:** a file with no mdat before its moov (phone-fast, frag-cmaf) comes back unchanged; it
+    refuses (BoxError) no moov (broken-nomoov), fragments (moof), an mdat after the moov, and saio (cenc: its offsets
+    point into the moov, which moves by another amount; ffmpeg's own faststart writes them as senc's new place), and an
+    stco offset that would pass 4 GiB (ffmpeg switches to co64 and grows the moov, `compute_moov_size`; mp4kit does
+    not). Several mdats before the moov all move by the one delta (tested on a synthetic two-mdat f1).
+  - **Blocks the Build-it scene shows:** `shift_chunk_offsets` (unpack, add, pack back); `faststart` (cut, patch,
+    splice); `cmd_faststart`.
+  - **On-screen trim:** show `_print_move`, `_add_faststart` and the import as finished code; type the plan's three
+    (about 35 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

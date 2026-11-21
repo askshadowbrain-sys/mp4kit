@@ -498,6 +498,41 @@ def _print_streams(tracks, order):
                   f"{timing.reorder_depth(mine)}; the first dts is {early} ticks = {early // mine[0]['duration']} x "
                   f"{mine[0]['duration']} before its pts")
 
+def cmd_faststart(args):
+    """`faststart FILE -o OUT`: move the map room next to the front door (mux.faststart). Prints the top-level boxes
+    before and after (type, start, size), the shift, and each track's first and last chunk offsets before and after;
+    then writes OUT. A file with no mdat before its moov is written unchanged."""
+    from . import boxes, mux
+    data = boxes.read_mp4(args.file)
+    try:
+        out = mux.faststart(data)
+    except boxes.BoxError as e:
+        print(f"error: {e}")
+        return 1
+    _print_move(data, out)
+    Path(args.out).write_bytes(out)
+    print(f"wrote {len(out)} bytes")
+    return 0
+
+
+def _print_move(data, out):
+    """The top-level boxes before and after, where the moov went, and each track's chunk-offset table (stco or co64):
+    how many offsets, and the first and last, before -> after."""
+    from . import boxes, tables
+    before, after, path = boxes.walk(data), boxes.walk(out), "mdia/minf/stbl/"
+    for name, tree in (("before", before), ("after", after)):
+        print(f"{name}: " + ", ".join(f"{b.type} {b.start} {b.size}" for b in tree))
+    old, new = boxes.find(before, "moov"), boxes.find(after, "moov")
+    print(f"moov {old.start} -> {new.start}: every chunk offset + {new.size}, the moov's size" if old.start != new.start
+          else "no mdat before the moov: unchanged")
+    for n, (a, b) in enumerate(zip(boxes.find_all(before, "moov/trak"), boxes.find_all(after, "moov/trak")), 1):
+        box = boxes.find(a.children, path + "stco") or boxes.find(a.children, path + "co64")
+        if box:
+            o, m = tables.read_stco(data, box), tables.read_stco(out, boxes.find(b.children, path + box.type))
+            print(f"track {n} {box.type}: {len(o)} offsets" + (f", first {o[0]} -> {m[0]}, last {o[-1]} -> {m[-1]}"
+                                                                if o else ""))
+
+
 def _show(value):
     """A field as dump prints it: bytes as hex digits (in a list too), anything else as Python prints it."""
     if isinstance(value, list):
@@ -613,6 +648,14 @@ def _add_chunks(sub):
     c.set_defaults(func=cmd_chunks)
 
 
+def _add_faststart(sub):
+    """Register the `faststart` command."""
+    f = sub.add_parser("faststart", help="move the moov to the front, so a player reads it first")
+    f.add_argument("file", help="the MP4 file to read")
+    f.add_argument("-o", dest="out", required=True, help="the file to write")
+    f.set_defaults(func=cmd_faststart)
+
+
 def _add_packets(sub):
     """Register the `packets` command."""
     c = sub.add_parser("packets", help="list every packet in the order a player decodes them")
@@ -625,7 +668,7 @@ def main(argv: Optional[list] = None) -> int:
     p = argparse.ArgumentParser(prog="mp4kit")
     sub = p.add_subparsers(dest="cmd", required=True)
     for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes, _add_dump, _add_samples,
-                _add_frame, _add_extract, _add_chunks, _add_packets):
+                _add_frame, _add_extract, _add_chunks, _add_packets, _add_faststart):
         add(sub)
     args = p.parse_args(argv)
     return args.func(args)
