@@ -39,6 +39,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep25 | cli.py +58/-1, timing.py +34/-1 | 59 | ~20 | `cli.cmd_packets` 15 (20), at the limit, `timing.packets` 11 (16), `cli._print_packets` 11 (14), `cli._print_streams` 8 (11), `timing.play_order` 1 (4), `timing.reorder_depth` 1 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks` and `cli.cmd_packets` 15 overall |
 | ep26 | boxes.py +15/-1, cli.py +60/-1, mux.py +56/-2 | 79 | ~28 | `cli.cmd_rewrite_check` 15 (19), at the limit, `cli._compare_stbl` 13 (19), `mux.write_stbl` 12 (17), `cli._rewrite_track` 10 (13), `mux.runs` 7 (10), `mux.write_stsz` 3 (6), `boxes.box` 2 (6), `mux.stsc_rules` 1 (5), `mux.table_box` 1 (4), `boxes.full_box` 1 (4); `cli.cmd_samples` keeps 15 (`--rewrite-check` is an argparse `store_const` that swaps `func`, no line in its body); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples` and `cli.cmd_rewrite_check` 15 overall |
 | ep27 | cli.py +44/-1, mux.py +38/-2 | 56 | ~23 | `mux.faststart` 15 (21), at the limit, `cli._print_move` 13 (16), `cli.cmd_faststart` 11 (15), `mux.shift_chunk_offsets` 6 (10), `cli._add_faststart` 4 (6); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check` and `mux.faststart` 15 overall |
+| ep28 | cli.py +99/-0, mux.py +77/-2 | 106 | ~36 | `cli._rewrite_track_headers` 15 (19), at the limit, `cli._compare_box` 14 (18), `cli.cmd_header_check` 13 (17), `cli._rewrite_entry` 9 (12), `cli._rewrite_movie` 8 (11), `mux.write_avcc` 7 (10), `cli._bare_avc1` 5 (8), `mux.write_tkhd` 3 (7), `mux.write_avc1` 3 (6), `mux.write_mvhd` 2 (5), `mux.write_mdhd` 2 (5), `mux.write_ftyp`, `write_hdlr`, `write_media_header`, `write_dinf`, `write_elst` 1 each; `cli.cmd_dump` keeps its body (`--rewrite-check` is an argparse `store_const` that swaps `func`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
 
 ## Functions over 15 lines
 
@@ -632,4 +633,30 @@ arithmetic became `picture_size`, so its body is 12 lines.
     splice); `cmd_faststart`.
   - **On-screen trim:** show `_print_move`, `_add_faststart` and the import as finished code; type the plan's three
     (about 35 lines).
+- **ep28 (106, plan ~36).** The plan's ten names come to 32 code lines (`mux.write_ftyp` 2, `write_mvhd` 3,
+  `write_tkhd` 4, `write_mdhd` 3, `write_hdlr` 2, `write_media_header` 2, `write_dinf` 2, `write_elst` 2, `write_avcc` 8,
+  `write_avc1` 4), 34 with `mux.MATRIX` (the identity matrix, minimux's `MATRIX`) and `mux.py`'s import of `nal`. Each
+  keeps the plan's signature but one: `write_tkhd` has a sixth argument, `group=0` (the alternate group), because
+  ffmpeg writes its codec type there (0 video, 1 sound, 3 subtitle) and phone's sound tkhd is not its own without it.
+  Every writer writes version 0 (32-bit times and durations; every committed file is version 0). The other 72 are the
+  check, `dump FILE --rewrite-check`: `cmd_header_check` (14), `_rewrite_movie` (9: ftyp, mvhd), `_rewrite_track_headers`
+  (16: tkhd, elst, mdhd, hdlr, media header, dinf; tkhd's alternate group read 50 bytes before the box's end, the one
+  field no reader keeps), `_rewrite_entry` (10: avcC, avc1), `_compare_box` (15), `_bare_avc1` (6) and `_add_dump`'s two
+  lines.
+  - **The numbers:** phone's ftyp 32, mvhd 108 (48,000 / 96,000, next track 3), video tkhd 92 (track 1, 96,000,
+    640 x 360), sound tkhd 92 (track 2, group 1, volume 1), elst 28 in both tracks (96,000 from 1,024), mdhd 32 (15,360 /
+    30,720 and 48,000 / 97,024, `und` = 0x55C4), hdlr 45 (`VideoHandler`, `SoundHandler`), vmhd 20, smhd 16, dinf 36
+    (dref 28, `url ` 12, flags 1), avcC 55 (8 + 6 + 2 + 26 SPS + 1 + 2 + 6 PPS + 4 tail `fd f8 f8 00`): 15 of the 16
+    boxes written are phone's, byte for byte. avc1 is 141 against 177: the same once its compressorname (`0c` + "Lavc
+    libx264", 13 of its 32 bytes) is blanked and its pasp (16) and btrt (20) are left out. phone's mp4a (episode 29) is
+    not written. f1 and f2 (minimux) are every box the same, avc1 included (no name, no pasp, no btrt).
+  - **Where a box is not the file's:** rotated's video tkhd (bytes 49 to 65: the 90-degree matrix; write_tkhd writes
+    the identity), phone-chapters' chapter tkhd (byte 11: flags 2, in the movie but not enabled; write_tkhd writes 3),
+    and the avc1 of every libx264 file (above). Not written: mp4a/enca/encv/hvc1/hev1/av01/tx3g/text entries, and the
+    media headers nmhd (subs) and gmhd (phone-chapters' text track). f1 and frag-cmaf have no elst.
+  - **Not done here:** version 1 (64-bit) mvhd/tkhd/mdhd/elst, more than one edit, more than one SPS or PPS, SPS
+    extensions, a display matrix, a compressorname, pasp, btrt, colr; the udta/meta hdlr (`mdir`) is not checked.
+  - **Blocks the Build-it scene shows:** the ten writers and `MATRIX`.
+  - **On-screen trim:** show `cmd_header_check`, `_rewrite_movie`, `_rewrite_track_headers`, `_rewrite_entry`,
+    `_compare_box`, `_bare_avc1` and the flag as finished code; type the plan's ten (about 34 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

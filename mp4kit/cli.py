@@ -265,6 +265,103 @@ def _compare_stbl(old, new):
     return all(old.get(k) == new[k] for k in new)
 
 
+def cmd_header_check(args):
+    """`dump FILE --rewrite-check`: the workshop's second test (episode 28). ftyp, mvhd and each track's header boxes,
+    written back from the fields mp4kit reads (mux.write_*) and compared with the file's, box by box. Last, how many
+    boxes were written and how many of them are the file's, byte for byte."""
+    from . import boxes
+    data = boxes.read_mp4(args.file)
+    try:
+        tree = boxes.walk(data)
+        rows = _rewrite_movie(data, tree)
+    except boxes.BoxError as e:
+        print(f"error: {e}")
+        return 1
+    for n, trak in enumerate(boxes.find_all(tree, "moov/trak"), 1):
+        rows += _rewrite_track_headers(data, n, trak)
+    written = [r for r in rows if r not in ("not written", "none in the file")]
+    print(f"boxes written {len(written)}, the file's byte for byte {written.count('yes')}")
+    return 0
+
+
+def _rewrite_movie(data, tree):
+    """The nameplate (ftyp) and the wall clock (mvhd), written from their fields and compared; a BoxError if the file
+    has neither."""
+    from . import boxes, mux, tables
+    ftyp, mvhd = boxes.find(tree, "ftyp"), boxes.find(tree, "moov/mvhd")
+    if ftyp is None or mvhd is None:
+        raise boxes.BoxError("no ftyp or no moov/mvhd: no headers to write back")
+    print("each header box written back from its fields (mux.write_*), box by box\nbox bytes written same")
+    m = tables.read_mvhd(data, mvhd)
+    return [_compare_box(data, "ftyp", ftyp, mux.write_ftyp(**boxes.read_ftyp(data, ftyp))),
+            _compare_box(data, "mvhd", mvhd, mux.write_mvhd(m["timescale"], m["duration"], m["next_track_ID"]))]
+
+
+def _rewrite_track_headers(data, n, trak):
+    """One track's header boxes, each written from the fields its reader gives, then compared (_compare_box). tkhd's
+    alternate group is read where it sits, 50 bytes before the box's end. vmhd and smhd are the only media headers
+    written (subs' nmhd and the chapter track's gmhd are not)."""
+    from . import boxes, mux, tables
+    c = trak.children
+    tkhd, mdhd, hdlr = boxes.find(c, "tkhd"), boxes.find(c, "mdia/mdhd"), boxes.find(c, "mdia/hdlr")
+    k, d, h = tables.read_tkhd(data, tkhd), tables.read_mdhd(data, mdhd), tables.read_hdlr(data, hdlr)
+    elst, minf, kind = boxes.find(c, "edts/elst"), boxes.find(c, "mdia/minf"), h["handler_type"]
+    edits, media, group = tables.read_elst(data, elst), minf.children[0], boxes.u16(data, tkhd.end - 50)
+    print(f"track {n} {kind}")
+    return [_compare_box(data, "tkhd", tkhd, mux.write_tkhd(k["track_ID"], k["duration"], int(k["width"]),
+                                                            int(k["height"]), int(k["volume"]), group)),
+            _compare_box(data, "elst", elst, mux.write_elst(*edits[0][:2]) if len(edits) == 1 else None),
+            _compare_box(data, "mdhd", mdhd, mux.write_mdhd(d["timescale"], d["duration"], d["language"])),
+            _compare_box(data, "hdlr", hdlr, mux.write_hdlr(kind, h["name"])),
+            _compare_box(data, media.type, media, mux.write_media_header(kind) if kind in ("vide", "soun") else None),
+            _compare_box(data, "dinf", boxes.find(minf.children, "dinf"), mux.write_dinf()),
+            *_rewrite_entry(data, minf)]
+
+
+def _rewrite_entry(data, minf):
+    """The tray's first sheet: an avc1 and its avcC written from their fields and compared; any other sample entry
+    (mp4a comes in episode 29) is not written."""
+    from . import boxes, mux, tables
+    entry = tables.read_stsd(data, boxes.find(minf.children, "stbl/stsd"))[0]
+    if entry.type != "avc1":
+        return [_compare_box(data, entry.type, entry, None)]
+    avcc = boxes.find(entry.children, "avcC")
+    a, v = tables.read_avcc(data, avcc), tables.read_visual_entry(data, entry)
+    written = mux.write_avcc(a["SPS"][0], a["PPS"][0])
+    return [_compare_box(data, "avcC", avcc, written),
+            _compare_box(data, "avc1", entry, mux.write_avc1(v["width"], v["height"], written))]
+
+
+def _compare_box(data, kind, box, new):
+    """One row: the file's box against the one written (`new`; None: not written). Its bytes, the bytes written, and
+    the same or not: an avc1 that differs is checked again as _bare_avc1; any other box of the same length that
+    differs shows the first and last of its bytes that differ."""
+    old = bytes(data[box.start:box.end]) if box else None
+    same = "no"
+    if old is None or new is None:
+        same = "not written" if old else "none in the file"
+    elif old == new:
+        same = "yes"
+    elif kind == "avc1" and _bare_avc1(data, box) == new:
+        same = "the same without " + ", ".join(["its compressorname"] + [b.type for b in box.children
+                                                                         if b.type != "avcC"])
+    elif len(old) == len(new):
+        at = [i for i, (x, y) in enumerate(zip(old, new)) if x != y]
+        same = f"no (bytes {at[0]} to {at[-1]} differ)"
+    print(kind, len(old) if old else "-", len(new) if new else "-", same)
+    return same
+
+
+def _bare_avc1(data, box):
+    """The file's avc1 as write_avc1 would write it: its compressorname blanked (32 zero bytes) and only its avcC kept
+    (no pasp, btrt)."""
+    from . import boxes
+    sheet = bytearray(data[box.payload:box.payload + 78])
+    sheet[42:74] = bytes(32)
+    avcc = boxes.find(box.children, "avcC")
+    return boxes.box(box.type, sheet, data[avcc.start:avcc.end])
+
+
 def cmd_frame(args):
     """`frame FILE --at MS [--out FRAME.h264]`: the whole route, front door to parcel. In the first video track,
     find the sample on screen at --at milliseconds (sample_at, on the presentation timeline), walk back to the
@@ -609,6 +706,8 @@ def _add_dump(sub):
     d.add_argument("file", help="the MP4 file to read")
     d.add_argument("--find", metavar="TYPE", help="print only the boxes of this type, by their path")
     d.add_argument("--pcm", action="store_true", help="each sound track's size as raw PCM against its AAC frames")
+    d.add_argument("--rewrite-check", dest="func", action="store_const", const=cmd_header_check,
+                   help="write ftyp, mvhd and each track's header boxes back from their fields and compare them")
     d.set_defaults(func=cmd_dump)
 
 

@@ -1,0 +1,22 @@
+each header box written back from its fields (mux.write_*), box by box
+box bytes written same
+ftyp 32 32 yes
+mvhd 108 108 yes
+track 1 vide
+tkhd 92 92 yes
+elst 28 28 yes
+mdhd 32 32 yes
+hdlr 45 45 yes
+vmhd 20 20 yes
+dinf 36 36 yes
+avcC 55 55 yes
+avc1 177 141 the same without its compressorname, pasp, btrt
+track 2 soun
+tkhd 92 92 yes
+elst 28 28 yes
+mdhd 32 32 yes
+hdlr 45 45 yes
+smhd 16 16 yes
+dinf 36 36 yes
+mp4a 110 - not written
+boxes written 16, the file's byte for byte 15

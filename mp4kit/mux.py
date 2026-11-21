@@ -1,11 +1,13 @@
 """Writing an MP4: the workshop. Episode 24: the zipper, a plan of which track's chunk goes next in mdat (interleave),
 from each sample's decode time on the movie's timeline (timeline). Episode 26: the same drawers, built instead of
 opened: each sample table written back from a track's samples (runs, stsc_rules, table_box, write_stsz, write_stbl).
-Episode 27: the map room moved next to the front door (faststart, shift_chunk_offsets)."""
+Episode 27: the map room moved next to the front door (faststart, shift_chunk_offsets). Episode 28: the signs, clocks
+and tray built from their fields (write_ftyp, write_mvhd, write_tkhd, write_mdhd, write_hdlr, write_media_header,
+write_dinf, write_elst, write_avcc, write_avc1)."""
 import struct
 from fractions import Fraction
 
-from . import audio, boxes, tables
+from . import audio, boxes, nal, tables
 
 
 def timeline(track):
@@ -116,3 +118,76 @@ def faststart(data):
     room = bytearray(data[moov.start:moov.end])
     shift_chunk_offsets(room, boxes.walk(room), moov.size)
     return bytes(data[:front]) + bytes(room) + bytes(data[front:moov.start]) + bytes(data[moov.end:])
+
+
+MATRIX = struct.pack(">9i", 0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000)   # identity: the picture as it is
+
+
+def write_ftyp(major, minor, brands):
+    """The front-door nameplate: major brand, minor version, compatible brands. The reverse of boxes.read_ftyp."""
+    return boxes.box("ftyp", major.encode("latin-1"), struct.pack(">I", minor), *(b.encode("latin-1") for b in brands))
+
+
+def write_mvhd(timescale, duration, next_track_id):
+    """The wall clock (version 0, 108 bytes): created and modified at 0, its ticks and length, rate 1.0, volume 1.0,
+    10 reserved bytes, the identity matrix, six zero QuickTime preview fields, the next free track_ID."""
+    return boxes.full_box("mvhd", 0, 0, struct.pack(">IIIIIH", 0, 0, timescale, duration, 0x10000, 0x100), bytes(10),
+                          MATRIX, bytes(24), struct.pack(">I", next_track_id))
+
+
+def write_tkhd(track_id, duration, width, height, volume, group=0):
+    """The corridor's sign (version 0, 92 bytes): flags 3 (enabled, in the movie), track_ID, its length on the movie
+    clock, layer 0, alternate group (ffmpeg writes its codec type: 0 video, 1 sound), volume (1 full, 0 for a picture)
+    in 8.8, the identity matrix, width and height in 16.16."""
+    return boxes.full_box("tkhd", 0, 3, struct.pack(">IIIII", 0, 0, track_id, 0, duration), bytes(8),
+                          struct.pack(">hhHH", 0, group, volume << 8, 0), MATRIX,
+                          struct.pack(">II", width << 16, height << 16))
+
+
+def write_mdhd(timescale, duration, language="und"):
+    """The room's clock (version 0, 32 bytes): its ticks and length, the language's three letters 5 bits each (each
+    letter's code minus 0x60), quality 0. The reverse of tables.read_mdhd."""
+    code = sum((ord(c) - 0x60) << shift for c, shift in zip(language, (10, 5, 0)))
+    return boxes.full_box("mdhd", 0, 0, struct.pack(">IIIIHH", 0, 0, timescale, duration, code, 0))
+
+
+def write_hdlr(handler, name):
+    """The door sign: pre_defined 0, handler_type (vide, soun), 12 reserved bytes, a name ending in a zero byte."""
+    return boxes.full_box("hdlr", 0, 0, bytes(4), handler.encode("latin-1"), bytes(12), name.encode() + b"\0")
+
+
+def write_media_header(handler):
+    """The room's own small sign: vmhd for pictures (flags 1, graphicsmode and opcolor 0: 20 bytes), smhd for sound
+    (balance 0: 16 bytes)."""
+    return boxes.full_box("vmhd", 0, 1, bytes(8)) if handler == "vide" else boxes.full_box("smhd", 0, 0, bytes(4))
+
+
+def write_dinf():
+    """Where the samples live: dinf/dref with one entry, `url ` with flags 1, "in this file" (36 bytes)."""
+    return boxes.box("dinf", boxes.full_box("dref", 0, 0, struct.pack(">I", 1), boxes.full_box("url ", 0, 1)))
+
+
+def write_elst(segment_duration, media_time):
+    """The entrance timer (version 0, 28 bytes): one edit, play `segment_duration` (movie clock) from `media_time`
+    (track clock) at rate 1.0. The caller puts it in an edts."""
+    return boxes.full_box("elst", 0, 0, struct.pack(">IIiHH", 1, segment_duration, media_time, 1, 0))
+
+
+def write_avcc(sps, pps):
+    """The instruction sheets: version 1, the SPS's profile, compatibility and level, 0xFF (4-byte lengths), 0xE1 (one
+    SPS), the SPS, one PPS; profiles but 66, 77, 88 add chroma format, bit depths and no SPS extensions."""
+    tail = b""
+    if sps[1] not in (66, 77, 88):
+        s = nal.parse_sps(sps)
+        depths = (0xF8 | s["bit_depth_luma"] - 8, 0xF8 | s["bit_depth_chroma"] - 8)
+        tail = bytes([0xFC | s["chroma_format_idc"], *depths, 0])
+    return boxes.box("avcC", bytes([1, *sps[1:4], 0xFF, 0xE1]), struct.pack(">H", len(sps)), sps,
+                     b"\x01", struct.pack(">H", len(pps)), pps, tail)
+
+
+def write_avc1(width, height, avcc):
+    """The tray's sheet for H.264: 6 reserved bytes, data_reference_index 1, 16 zero bytes, width, height, 72 dpi
+    twice, 0, frame_count 1, a 32-byte compressorname left empty, depth 24, pre_defined -1; then the avcC."""
+    return boxes.box("avc1", bytes(6), struct.pack(">H", 1), bytes(16),
+                     struct.pack(">HHIIIH", width, height, 0x480000, 0x480000, 0, 1), bytes(32),
+                     struct.pack(">Hh", 0x18, -1), avcc)

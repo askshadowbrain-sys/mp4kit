@@ -35,6 +35,7 @@ cmd_for() {
     ep25) echo 'python3 -m mp4kit packets testfiles/out/phone.mp4' ;;
     ep26) echo 'python3 -m mp4kit samples testfiles/out/phone.mp4 --rewrite-check' ;;
     ep27) echo 'python3 -m mp4kit faststart testfiles/out/phone.mp4 -o "$TMPOUT/fast.mp4" && cmp "$TMPOUT/fast.mp4" testfiles/out/phone-fast.mp4' ;;
+    ep28) echo 'python3 -m mp4kit dump testfiles/out/phone.mp4 --rewrite-check' ;;
     *) return 1 ;;
   esac
 }
