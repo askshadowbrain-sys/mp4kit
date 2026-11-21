@@ -3,9 +3,13 @@ from each sample's decode time on the movie's timeline (timeline). Episode 26: t
 opened: each sample table written back from a track's samples (runs, stsc_rules, table_box, write_stsz, write_stbl).
 Episode 27: the map room moved next to the front door (faststart, shift_chunk_offsets). Episode 28: the signs, clocks
 and tray built from their fields (write_ftyp, write_mvhd, write_tkhd, write_mdhd, write_hdlr, write_media_header,
-write_dinf, write_elst, write_avcc, write_avc1)."""
+write_dinf, write_elst, write_avcc, write_avc1). Episode 29: a whole House from two piles of parcels: the sound tray's
+sheet (write_esds, write_mp4a), a Track from a plain stream (video_track, audio_track), a corridor (write_trak), and
+the House (mux)."""
+import dataclasses
 import struct
 from fractions import Fraction
+from itertools import accumulate
 
 from . import audio, boxes, nal, tables
 
@@ -191,3 +195,128 @@ def write_avc1(width, height, avcc):
     return boxes.box("avc1", bytes(6), struct.pack(">H", 1), bytes(16),
                      struct.pack(">HHIIIH", width, height, 0x480000, 0x480000, 0, 1), bytes(32),
                      struct.pack(">Hh", 0x18, -1), avcc)
+
+
+def descriptor(tag, *parts):
+    """One envelope (an MPEG-4 descriptor), written the way ffmpeg writes it: the tag, then the length in four bytes of
+    7 bits (80 80 80 and the length; read_descriptor reads it back), then the contents. Contents up to 127 bytes."""
+    body = b"".join(parts)
+    return bytes([tag, 0x80, 0x80, 0x80, len(body)]) + body
+
+
+def write_esds(asc, avg_bitrate, es_id=0):
+    """The sound tray's sheet (esds): ES_Descriptor (ES_ID, flags 0) holding the DecoderConfigDescriptor (0x40 MPEG-4
+    audio, 0x15 = stream type 5 sound, bufferSizeDB 0, max and average bitrate) holding the AudioSpecificConfig,
+    then an SLConfigDescriptor (predefined 2). ffmpeg's ES_ID is the track_ID. The reverse of audio.read_esds."""
+    config = descriptor(0x04, bytes([0x40, 0x15]), bytes(3), struct.pack(">II", avg_bitrate, avg_bitrate),
+                        descriptor(0x05, asc))
+    return boxes.full_box("esds", 0, 0, descriptor(0x03, struct.pack(">HB", es_id, 0), config,
+                                                   descriptor(0x06, b"\x02")))
+
+
+def write_mp4a(channels, sample_rate, esds):
+    """The tray's sheet for AAC: 6 reserved bytes, data_reference_index 1, 8 reserved, channelcount, samplesize 16,
+    pre_defined and reserved 0, samplerate in 16.16; then the esds. The reverse of tables.read_audio_entry."""
+    return boxes.box("mp4a", bytes(6), struct.pack(">H", 1), bytes(8),
+                     struct.pack(">HHII", channels, 16, 0, sample_rate << 16), esds)
+
+
+def video_clock(fps):
+    """A video track's clock, as ffmpeg's movenc picks it: the frame rate, doubled until it reaches 10,000 ticks a
+    second (30 -> 15,360, 25 -> 12,800), so every frame lasts a whole number of ticks."""
+    timescale = fps
+    while timescale < 10000:
+        timescale *= 2
+    return timescale
+
+
+def display_order(units, sps, pps):
+    """Each access unit's slot in display order (from 0): sorted by picture order count (the slice header's
+    pic_order_cnt_lsb, episode 17), which restarts at each IDR, so first by how many IDRs came before. A stream with
+    no pic_order_cnt_lsb (POC type 1 or 2) is shown in decode order. Only the lsb is read: no wrap within a GOP."""
+    s, p = nal.parse_sps(sps), nal.parse_pps(pps)
+    slices = [next(u for u in au if u[0] & 31 in (1, 5)) for au in units]
+    gop = list(accumulate(x[0] & 31 == 5 for x in slices))
+    poc = [nal.read_slice_header(x, s, p).get("pic_order_cnt_lsb", i) for i, x in enumerate(slices)]
+    slots = [0] * len(units)
+    for slot, i in enumerate(sorted(range(len(units)), key=lambda i: (gop[i], poc[i]))):
+        slots[i] = slot
+    return slots
+
+
+def video_track(annexb, fps, timescale=None):
+    """A Track from an Annex B H.264 stream: one sample per access unit (its NAL units but SPS and PPS, which go to
+    avcC, behind 4-byte lengths), a frame every timescale / fps ticks in decode order (the clock: video_clock).
+    Each cts is the picture's display slot plus the least shift that keeps every cts at or after its dts; the
+    entrance timer starts at that shift, so the first picture shows at 0 (phone: 512, one frame)."""
+    timescale = timescale or video_clock(fps)
+    units = nal.access_units(nal.split_annexb(annexb))
+    sps, pps = (next((u for au in units for u in au if u[0] & 31 == t), None) for t in (7, 8))
+    if sps is None or pps is None or timescale % fps:
+        raise ValueError(f"needs an SPS and a PPS, and a clock ({timescale}) that counts whole ticks a frame")
+    display, delta = display_order(units, sps, pps), timescale // fps
+    shift = max(i - slot for i, slot in enumerate(display))
+    payloads = [nal.to_avcc([u for u in au if u[0] & 31 not in (7, 8)]) for au in units]
+    samples = [tables.Sample(i + 1, i * delta, (slot + shift) * delta, len(b), 0, any(u[0] & 31 == 5 for u in au))
+               for i, (slot, b, au) in enumerate(zip(display, payloads, units))]
+    width, height = nal.picture_size(nal.parse_sps(sps))
+    entry = {"type": "avc1", "width": width, "height": height, "avcC": {"SPS": [sps], "PPS": [pps]}}
+    return tables.Track(1, "vide", timescale, entry, samples, [(len(units) * delta, shift * delta, 1, 0)],
+                        duration=len(units) * delta, payloads=payloads)
+
+
+def audio_track(adts, priming=0):
+    """A Track from an ADTS AAC stream: one sample per frame, 1,024 ticks each on a clock of the sample rate, all of
+    them sync samples. ADTS has no field for the priming, so it is given: the entrance timer skips that many. The
+    average bitrate is the frames' bits over their length, as ffmpeg's movenc computes it."""
+    asc, frames = audio.split_adts(adts)
+    rate, duration = audio.SAMPLE_RATES[asc["samplingFrequencyIndex"]], 1024 * len(frames)
+    samples = [tables.Sample(i + 1, i * 1024, i * 1024, len(f), 0, True) for i, f in enumerate(frames)]
+    esds = {"ASC": audio.asc_bytes(asc), "avgBitrate": sum(map(len, frames)) * 8 * rate // duration}
+    entry = {"type": "mp4a", "channelcount": asc["channelConfiguration"], "samplerate": rate, "esds": esds}
+    return tables.Track(2, "soun", rate, entry, samples, [(duration - priming, priming, 1, 0)], duration=duration,
+                        payloads=frames)
+
+
+def write_stsd(track):
+    """The tray (stsd): entry_count 1, then the track's one sheet, avc1 + avcC or mp4a + esds."""
+    e = track.entry
+    if e["type"] == "avc1":
+        sheet = write_avc1(e["width"], e["height"], write_avcc(e["avcC"]["SPS"][0], e["avcC"]["PPS"][0]))
+    else:
+        sheet = write_mp4a(e["channelcount"], e["samplerate"], write_esds(e["esds"]["ASC"], e["esds"]["avgBitrate"],
+                                                                          track.id))
+    return boxes.full_box("stsd", 0, 0, struct.pack(">I", 1), sheet)
+
+
+def write_trak(track, stsd, chunk_offsets, chunks, movie_timescale):
+    """One corridor: tkhd (sound: volume 1, alternate group 1), edts/elst, then mdia: mdhd, hdlr, minf (media header,
+    dinf, stbl). A built track's edit counts on its own clock; here it goes on the movie's, as tkhd's length."""
+    length, media_time = track.elst[0][0] * movie_timescale // track.timescale, track.elst[0][1]
+    vide, e = track.handler == "vide", track.entry
+    tkhd = write_tkhd(track.id, length, e.get("width", 0), e.get("height", 0), int(not vide), int(not vide))
+    minf = boxes.box("minf", write_media_header(track.handler), write_dinf(),
+                     write_stbl(track, stsd, chunk_offsets, chunks))
+    mdia = boxes.box("mdia", write_mdhd(track.timescale, track.duration),
+                     write_hdlr(track.handler, "VideoHandler" if vide else "SoundHandler"), minf)
+    return boxes.box("trak", tkhd, boxes.box("edts", write_elst(length, media_time)), mdia)
+
+
+def mux(tracks, fast=False):
+    """The House: ftyp, free (ffmpeg's 8 bytes kept for a largesize mdat), mdat (every chunk, in interleave's order),
+    then moov: mvhd on the finest track clock (the largest timescale), a trak each. Tracks are numbered 1, 2, ... in
+    order. fast=True: the moov moved to the front by faststart (episode 27). 32-bit sizes only."""
+    tracks = [dataclasses.replace(t, id=n) for n, t in enumerate(tracks, 1)]
+    movie, head = max(t.timescale for t in tracks), write_ftyp("isom", 512, ["isom", "iso2", "avc1", "mp41"])
+    head, parcels, offsets, counts = head + boxes.box("free"), [], [[] for _ in tracks], [[] for _ in tracks]
+    at = len(head) + 8
+    for n, first, count in interleave(tracks):
+        chunk = tracks[n - 1].payloads[first - 1:first - 1 + count]
+        offsets[n - 1].append(at)
+        counts[n - 1].append(count)
+        parcels += chunk
+        at += sum(map(len, chunk))
+    traks = [write_trak(t, write_stsd(t), offsets[i], counts[i], movie) for i, t in enumerate(tracks)]
+    length = max(t.elst[0][0] * movie // t.timescale for t in tracks)
+    data = head + boxes.box("mdat", *parcels) + boxes.box("moov", write_mvhd(movie, length, len(tracks) + 1), *traks)
+    return faststart(data) if fast else data

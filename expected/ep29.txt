@@ -1,0 +1,5 @@
+track 1 vide avc1 640x360: 60 samples (84349 bytes) in 60 chunks, 2 key; clock 15360, 30720 ticks; entrance timer (96000, 512), smallest cts 512
+track 2 soun mp4a 48000 Hz, 2 channels, ASC 11 90: 95 samples (24347 bytes) in 60 chunks, 95 key; clock 48000, 97280 ticks; entrance timer (96256, 1024), smallest cts 0
+mvhd: clock 48000, 96256 ticks, next track 3
+boxes: ftyp 0 32, free 32 8, mdat 40 108704, moov 108744 3238
+wrote 111982 bytes

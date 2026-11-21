@@ -40,6 +40,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep26 | boxes.py +15/-1, cli.py +60/-1, mux.py +56/-2 | 79 | ~28 | `cli.cmd_rewrite_check` 15 (19), at the limit, `cli._compare_stbl` 13 (19), `mux.write_stbl` 12 (17), `cli._rewrite_track` 10 (13), `mux.runs` 7 (10), `mux.write_stsz` 3 (6), `boxes.box` 2 (6), `mux.stsc_rules` 1 (5), `mux.table_box` 1 (4), `boxes.full_box` 1 (4); `cli.cmd_samples` keeps 15 (`--rewrite-check` is an argparse `store_const` that swaps `func`, no line in its body); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples` and `cli.cmd_rewrite_check` 15 overall |
 | ep27 | cli.py +44/-1, mux.py +38/-2 | 56 | ~23 | `mux.faststart` 15 (21), at the limit, `cli._print_move` 13 (16), `cli.cmd_faststart` 11 (15), `mux.shift_chunk_offsets` 6 (10), `cli._add_faststart` 4 (6); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check` and `mux.faststart` 15 overall |
 | ep28 | cli.py +99/-0, mux.py +77/-2 | 106 | ~36 | `cli._rewrite_track_headers` 15 (19), at the limit, `cli._compare_box` 14 (18), `cli.cmd_header_check` 13 (17), `cli._rewrite_entry` 9 (12), `cli._rewrite_movie` 8 (11), `mux.write_avcc` 7 (10), `cli._bare_avc1` 5 (8), `mux.write_tkhd` 3 (7), `mux.write_avc1` 3 (6), `mux.write_mvhd` 2 (5), `mux.write_mdhd` 2 (5), `mux.write_ftyp`, `write_hdlr`, `write_media_header`, `write_dinf`, `write_elst` 1 each; `cli.cmd_dump` keeps its body (`--rewrite-check` is an argparse `store_const` that swaps `func`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
+| ep29 | cli.py +48/-1, mux.py +130/-1, tables.py +4/-2 | 119 | ~73 | `mux.video_track` 14 (19), `mux.mux` 14 (18), `cli.cmd_mux` 12 (16), `cli._print_built` 12 (15), `mux.display_order` 8 (12), `mux.write_trak` 8 (11), `cli._add_mux` 8 (10), `mux.audio_track` 7 (11), `mux.write_stsd` 7 (9), `mux.write_esds` 4 (8), `mux.video_clock` 4 (7), `mux.descriptor` 2 (5), `mux.write_mp4a` 2 (5); `tables.Track` gains one field (`payloads`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
 
 ## Functions over 15 lines
 
@@ -659,4 +660,36 @@ arithmetic became `picture_size`, so its body is 12 lines.
   - **Blocks the Build-it scene shows:** the ten writers and `MATRIX`.
   - **On-screen trim:** show `cmd_header_check`, `_rewrite_movie`, `_rewrite_track_headers`, `_rewrite_entry`,
     `_compare_box`, `_bare_avc1` and the flag as finished code; type the plan's ten (about 34 lines).
+- **ep29 (119, plan ~73; finale budget ~90).** The plan's seven names come to 68 code lines with their `def` lines
+  (`mux.write_esds` 5, `write_mp4a` 3, `video_track` 15, `audio_track` 8, `write_trak` 9, `mux` 15, `cli.cmd_mux` 13),
+  inside the plan's ~73. Four helpers carry what the plan folded into them, 25: `mux.descriptor` 3 (one MPEG-4
+  envelope, ffmpeg's 4-byte length form), `video_clock` 5 (ffmpeg movenc's rule: the frame rate doubled until it
+  reaches 10,000; 30 -> 15,360), `display_order` 9 (each picture's slot from its POC, restarting at each IDR) and
+  `write_stsd` 8 (the tray around avc1 or mp4a: no ep26-ep28 function wrote stsd). The CLI's read-back
+  `_print_built` 13, `_add_mux` 9 and `main`'s tuple 1; two imports (`dataclasses`, `itertools.accumulate`) and
+  `tables.Track.payloads` 1. Signatures that differ from the plan: `video_track(annexb, fps, timescale=None)` (None:
+  video_clock), `write_esds(asc, avg_bitrate, es_id=0)` (ffmpeg writes the track_ID as ES_ID; phone's is 2),
+  `write_trak(track, stsd, chunk_offsets, chunks, movie_timescale)` (a built track's edit counts on its own clock and
+  goes on the movie's here) and `mux(tracks, fast=False)` (`faststart` would hide episode 27's function, which it
+  calls).
+  - **The numbers:** phone.h264 (84,427 B) -> 60 samples with phone's 60 sizes (84,349 B; sample 1 = SEI + IDR,
+    5,824), keyframes [1, 31], clock 15,360, 512 a frame; display order from POC [0, 6, 2, 4, ...] -> slots [0, 3, 1,
+    2, ...]; the least shift is one frame, so ctts starts 512, 1,536, 0, 0 (phone's 1,024, 2,048, 512, 512: every run
+    512 less, the same 44 runs) and the elst is (96,000, 512) where phone's is (96,000, 1,024). phone.aac (25,012 B)
+    -> 95 samples with phone's sizes, ASC `11 90`, avgBitrate 96,106 (24,347 x 8 x 48,000 / 97,280), elst (96,256,
+    1,024). The House: ftyp 32, free 8, mdat 108,704 at 40 (phone's size, the chunks in another order: 60 + 60 chunks
+    against 59 + 59), moov 3,238 at 108,744 (phone's 3,412): 111,982 bytes. `ffmpeg -v error -i out.mp4 -f null -`
+    prints nothing; every decoded picture's framemd5 and pts is phone's; the sound is phone's 96,000 samples then 256
+    more (ADTS cannot say that the last frame holds 768).
+  - **Not phone's twin:** the video elst (512 vs 1,024), ctts values, stsc and stco (chunking), avc1 (no name, pasp,
+    btrt), esds (2-byte ASC, not ffmpeg's 5-byte `11 90 56 e5 00`; bitrate 96,106 not 96,360), mp4a (no btrt), the
+    sound stts/mdhd/elst/tkhd and mvhd lengths (97,280 and 96,256: no 768-sample last frame), no sgpd/sbgp roll
+    group, no udta. The same bytes: ftyp, free, the video tkhd and mdhd, both hdlr, vmhd, smhd, both dinf, avcC, the
+    video stts, stss and both stsz.
+  - **Not done here:** fractional frame rates (29.97), POC type 1, POC lsb wrapping inside a GOP, more than one
+    SPS/PPS, AUD/end-of-stream units are kept in samples as found, ADTS with CRC (read, its CRC dropped), the encoder's
+    end trimming, cslg, co64 / largesize (a moov or mdat over 4 GiB), a display matrix, language.
+  - **Blocks the Build-it scene shows:** the plan's seven and `descriptor`.
+  - **On-screen trim:** show `video_clock`, `display_order`, `write_stsd`, `_print_built`, `_add_mux` and the
+    `Track.payloads` field as finished code; type the plan's seven and `descriptor` (about 71 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

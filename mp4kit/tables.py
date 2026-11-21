@@ -8,7 +8,7 @@ sample's composition time, its decode time plus the slip (read_ctts). Episode 18
 corridor's entrance (read_elst). Episode 21: the sound corridor's sheet, mp4a (read_audio_entry). Episode 22: the
 roll slip, a sample group: its entries (sgpd) and the runs of samples it covers (sbgp). Episode 23: many tracks, each
 corridor read whole (Track, read_tracks), and the signposts between corridors (read_tref). Episode 24: the
-basement aisle, every track's chunks in file order (Sample.chunk, chunk_list)."""
+basement aisle, every track's chunks in file order (Sample.chunk, chunk_list). Episode 29: Track.payloads."""
 import struct
 from dataclasses import dataclass, field
 
@@ -404,7 +404,8 @@ boxes.DECODERS["tref"] = read_tref
 class Track:
     """One corridor, read whole: its track_ID (tkhd), what it holds (hdlr), its clock (mdhd timescale), its tray's
     first sheet as a dict (the sample entry's type and fields, and each box inside it: avcC, esds), every sample
-    (sample_table), its entrance timer (elst), its signposts (tref) and its length on its own clock (mdhd)."""
+    (sample_table), its entrance timer (elst), its signposts (tref) and its length on its own clock (mdhd). Episode
+    29: a track built from a plain stream also carries its samples' bytes (payloads); one read from a file does not."""
     id: int
     handler: str
     timescale: int
@@ -413,6 +414,7 @@ class Track:
     elst: list
     tref: dict = field(default_factory=dict)
     duration: int = 0
+    payloads: list = field(default_factory=list, repr=False, compare=False)
 
 
 def _entry(data, stsd):

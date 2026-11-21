@@ -630,6 +630,41 @@ def _print_move(data, out):
                                                                 if o else ""))
 
 
+def cmd_mux(args):
+    """`mux --video ES.h264 --audio ES.aac -o OUT [--fps N] [--priming N] [--faststart]`: a whole House from two piles
+    of parcels (mux.video_track, mux.audio_track, mux.mux). The House is read back with the same readers as any other
+    file (_print_built), then written. ffmpeg is the judge: `ffmpeg -v error -i OUT -f null -` prints nothing."""
+    from . import mux
+    try:
+        video = mux.video_track(Path(args.video).read_bytes(), args.fps)
+        sound = mux.audio_track(Path(args.audio).read_bytes(), args.priming)
+    except ValueError as e:
+        print(f"error: {e}")
+        return 1
+    data = mux.mux([video, sound], args.faststart)
+    _print_built(data)
+    Path(args.out).write_bytes(data)
+    print(f"wrote {len(data)} bytes")
+    return 0
+
+
+def _print_built(data):
+    """The House as mp4kit reads it back: each track's sheet, samples, chunks and entrance timer, then the movie's
+    clock and the top-level boxes (type, start, size)."""
+    from . import boxes, tables
+    tree = boxes.walk(data)
+    for n, t in enumerate(tables.read_tracks(data, tree), 1):
+        e, s = t.entry, t.samples
+        sheet = (f"{e['width']}x{e['height']}" if t.handler == "vide" else
+                 f"{int(e['samplerate'])} Hz, {e['channelcount']} channels, ASC {e['esds']['ASC'].hex(' ')}")
+        print(f"track {n} {t.handler} {e['type']} {sheet}: {len(s)} samples ({sum(x.size for x in s)} bytes) in "
+              f"{s[-1].chunk} chunks, {sum(x.key for x in s)} key; clock {t.timescale}, {t.duration} ticks; "
+              f"entrance timer {t.elst[0][:2]}, smallest cts {min(x.cts for x in s)}")
+    m = tables.read_mvhd(data, boxes.find(tree, "moov/mvhd"))
+    print(f"mvhd: clock {m['timescale']}, {m['duration']} ticks, next track {m['next_track_ID']}")
+    print("boxes: " + ", ".join(f"{b.type} {b.start} {b.size}" for b in tree))
+
+
 def _show(value):
     """A field as dump prints it: bytes as hex digits (in a list too), anything else as Python prints it."""
     if isinstance(value, list):
@@ -755,6 +790,18 @@ def _add_faststart(sub):
     f.set_defaults(func=cmd_faststart)
 
 
+def _add_mux(sub):
+    """Register the `mux` command."""
+    m = sub.add_parser("mux", help="write an MP4 from an H.264 stream (Annex B) and an AAC stream (ADTS)")
+    m.add_argument("--video", required=True, help="the H.264 stream, Annex B (.h264)")
+    m.add_argument("--audio", required=True, help="the AAC stream, ADTS (.aac)")
+    m.add_argument("--fps", type=int, default=25, help="frames a second (default 25, as ffmpeg's raw H.264 reader)")
+    m.add_argument("--priming", type=int, default=0, help="sound samples the entrance timer skips (ADTS has no field)")
+    m.add_argument("--faststart", action="store_true", help="put the moov before the mdat")
+    m.add_argument("-o", dest="out", required=True, help="the file to write")
+    m.set_defaults(func=cmd_mux)
+
+
 def _add_packets(sub):
     """Register the `packets` command."""
     c = sub.add_parser("packets", help="list every packet in the order a player decodes them")
@@ -767,7 +814,7 @@ def main(argv: Optional[list] = None) -> int:
     p = argparse.ArgumentParser(prog="mp4kit")
     sub = p.add_subparsers(dest="cmd", required=True)
     for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes, _add_dump, _add_samples,
-                _add_frame, _add_extract, _add_chunks, _add_packets, _add_faststart):
+                _add_frame, _add_extract, _add_chunks, _add_packets, _add_faststart, _add_mux):
         add(sub)
     args = p.parse_args(argv)
     return args.func(args)
