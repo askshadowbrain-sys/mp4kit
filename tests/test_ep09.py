@@ -34,7 +34,7 @@ class Ep09(unittest.TestCase):
 
     def test_walk_reads_every_test_file(self):
         files = sorted(OUT.glob("*.mp4")) + sorted(OUT.glob("*.m4a"))
-        self.assertEqual(len(files), 17)          # phone-chapters.mp4 joined at ep23
+        self.assertEqual(len(files), 18)          # phone-chapters.mp4 joined at ep23, phone-sidx.mp4 at ep31
         for f in files:
             with self.subTest(f=f.name):
                 self.assertEqual(run_cli_code("dump", str(f))[0], 0)

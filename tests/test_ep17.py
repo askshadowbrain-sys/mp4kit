@@ -75,7 +75,7 @@ class Ep17(unittest.TestCase):
 
     def test_cts_matches_ffprobe_pts(self):
         for f in sorted(OUT.glob("*.mp4")) + sorted(OUT.glob("*.m4a")):
-            if f.name in ("broken-nomoov.mp4", "frag-cmaf.mp4"):                              # no moov; samples in moof
+            if f.name in ("broken-nomoov.mp4", "frag-cmaf.mp4", "phone-sidx.mp4"):  # no moov; samples in moof
                 continue
             captured = json.loads((CAPS / f"{f.name}.probe.json").read_text())
             for index, trak in enumerate(traks(f.read_bytes())):

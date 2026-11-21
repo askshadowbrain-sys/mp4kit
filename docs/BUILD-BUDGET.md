@@ -42,6 +42,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep28 | cli.py +99/-0, mux.py +77/-2 | 106 | ~36 | `cli._rewrite_track_headers` 15 (19), at the limit, `cli._compare_box` 14 (18), `cli.cmd_header_check` 13 (17), `cli._rewrite_entry` 9 (12), `cli._rewrite_movie` 8 (11), `mux.write_avcc` 7 (10), `cli._bare_avc1` 5 (8), `mux.write_tkhd` 3 (7), `mux.write_avc1` 3 (6), `mux.write_mvhd` 2 (5), `mux.write_mdhd` 2 (5), `mux.write_ftyp`, `write_hdlr`, `write_media_header`, `write_dinf`, `write_elst` 1 each; `cli.cmd_dump` keeps its body (`--rewrite-check` is an argparse `store_const` that swaps `func`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
 | ep29 | cli.py +48/-1, mux.py +130/-1, tables.py +4/-2 | 119 | ~73 | `mux.video_track` 14 (19), `mux.mux` 14 (18), `cli.cmd_mux` 12 (16), `cli._print_built` 12 (15), `mux.display_order` 8 (12), `mux.write_trak` 8 (11), `cli._add_mux` 8 (10), `mux.audio_track` 7 (11), `mux.write_stsd` 7 (9), `mux.write_esds` 4 (8), `mux.video_clock` 4 (7), `mux.descriptor` 2 (5), `mux.write_mp4a` 2 (5); `tables.Track` gains one field (`payloads`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
 | ep30 | cli.py +42/-1, frag.py +100 (new) | 92 | ~34 | `frag.traf_samples` 13 (19), `cli._print_fragments` 12 (15), `frag.read_trun` 11 (15), `cli._traf_line` 7 (10), `frag.read_tfhd` 7 (10), `cli._source` 6 (8), `frag.read_trex` 2 (5), `frag.read_tfdt` 2 (5), `frag.in_hex` 2 (4), `frag.column` 1 (3); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
+| ep31 | cli.py +94/-17, frag.py +86/-1 | 116 | ~35 | `cli.cmd_samples` 15 (22), at the limit, `frag.read_sidx` 14 (19), `cli._print_lookup` 12 (15), `frag.read_tfra` 11 (15), `frag.fragment_samples` 10 (13), `frag.back_gate` 8 (11), `cli._source` 7 (10), `cli._track_samples` 6 (9), `cli._print_tfra` 6 (9), `cli._print_samples` 5 (7), `cli._print_sidx` 5 (8), `cli._from_runs` 4 (7), `frag.read_mfro` 1 (3), `frag.fragment_at` 1 (4), `cli._in_fragments` 1 (3); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
 
 ## Functions over 15 lines
 
@@ -724,4 +725,36 @@ arithmetic became `picture_size`, so its body is 12 lines.
   - **Blocks the Build-it scene shows:** the plan's four and `traf_samples` with `column`.
   - **On-screen trim:** show the constants, `in_hex`, the `DECODERS` lines, `_print_fragments`, `_traf_line` and
     `_source` as finished code; type the four readers, `column` and `traf_samples` (about 42 lines).
+- **ep31 (116, plan ~35).** The plan's four come to 40 code lines with their `def` lines (`frag.fragment_samples`
+  11, `read_sidx` 15, `read_tfra` 12, `read_mfro` 2), near the plan's ~35. The rest is the goal itself, "find the
+  fragment that holds a given moment without reading the whole file", which the four readers do not reach:
+  `frag.back_gate` 9 (the mfra found from the file's last 4 bytes, as mov.c `mov_read_mfra` does), `frag.fragment_at`
+  2 (the last row starting at or before t), two imports and three `DECODERS` lines (frag.py 56); in cli.py
+  `samples` on a fragmented file (`cmd_samples` rearranged to 15, `_track_samples` 7, `_in_fragments` 2,
+  `_print_samples` 6, the `--at` option 1) and `samples --at MS` (`_print_lookup` 13, `_print_sidx` 6,
+  `_print_tfra` 7), and episode 30's carried-over `_source` fix (`_source` 8, `_from_runs` 5, one line in
+  `_traf_line`) (cli.py 60). `tables.read_tracks` is NOT changed (plan §4.1's "a moov with mvex takes its samples
+  from frag.fragment_samples"): the ep23–ep28 tests read frag-cmaf.mp4's empty moov tables as tables (ep26 writes
+  them back byte for byte), so only `samples` switches to the moofs. Signatures: the plan's four as written
+  (`read_sidx` and `read_tfra` give dicts whose rows are tuples; `read_sidx` adds `ranges`, (start time, first byte,
+  end byte) per reference); `back_gate(data)` and `fragment_at(index, t)` are new.
+  - **The numbers:** frag-cmaf.mp4: no sidx; mfra 111,390 (148): tfra track 1 [(0, 1242), (15,360, 55,016)], track
+    2 [(0, 1242), (45,056, 55,016)], each (traf, trun, sample) = (1, 1, 1), version 1, lengths 0; mfro 148 = the
+    last 4 bytes. phone-sidx.mp4 (new): two sidx (one per track, version 1) at 1,242 and 1,306: track 1 timescale
+    15,360, earliest 1,024, first_offset 64; track 2 48,000, 0, 0; both list the same two references, 53,946 and
+    56,366 bytes (= each moof + mdat), durations 15,360 + 15,360 and 48,256 + 50,944, starts_with_SAP 1, SAP_type 0;
+    ranges 1,370–55,316 and 55,316–111,682; tfra track 1 [(1024, 1370), (16384, 55316)], track 2 [(0, 1370),
+    (48256, 55316)]; mfra 111,682 (148). Every sample of both files is ffprobe's packet (pos, size, dts, key; pts =
+    cts + 512 on frag-cmaf's video, = cts elsewhere).
+  - **frag-cmaf's sound tfra runs 1,024 ticks early:** 45,056 is the pts ffmpeg's demuxer gave the muxer (phone.mp4's
+    sound with its priming, −1,024 first; movenc `info->time`), while the file's own sound fragment 2 starts at tfdt
+    46,080. So for 0.9387–0.96 s the sound tfra names fragment 2 and the moofs fragment 1 (`samples --track 2 --at
+    950`). The video entries and phone-sidx's agree with the file.
+  - **Not done here:** sidx reference_type 1 (an sidx pointing at sidx: read, never followed; mov.c refuses it too),
+    a sidx on another clock than its track's, tfra rows for a traf/trun/sample other than 1/1/1, a track missing
+    from a fragment in `_print_lookup`, a moof with no tfdt.
+  - **Blocks the Build-it scene shows:** the plan's four, `back_gate` and `fragment_at`.
+  - **On-screen trim:** show the `samples` rearrangement, `_print_lookup`, `_print_sidx`, `_print_tfra`, the
+    `DECODERS` lines and the `_source` fix as finished code; type the plan's four, `back_gate` and `fragment_at`
+    (about 51 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

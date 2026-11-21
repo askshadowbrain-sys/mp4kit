@@ -11,7 +11,8 @@ FILES = sorted(p.name for p in OUT.iterdir() if p.name != "broken-nomoov.mp4")
 # identity), phone-chapters' chapter track is in the movie but not enabled (tkhd flags 2, write_tkhd writes 3), and
 # every libx264 avc1 carries the name "Lavc libx264" with pasp and btrt (write_avc1 writes none of them).
 DIFFERENT = {"rotated.mp4": 2, "phone-chapters.mp4": 2, "phone.mp4": 1, "phone-fast.mp4": 1, "phone-large.mp4": 1,
-             "broken-stco.mp4": 1, "subs.mp4": 1, "frag-cmaf.mp4": 1}
+             "broken-stco.mp4": 1, "subs.mp4": 1, "frag-cmaf.mp4": 1,
+             "phone-sidx.mp4": 1}
 
 
 def raw(contents, box):

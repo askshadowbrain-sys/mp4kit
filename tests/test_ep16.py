@@ -52,7 +52,7 @@ class Ep16(unittest.TestCase):
 
     def test_matches_ffprobe(self):
         for f in sorted(OUT.glob("*.mp4")) + sorted(OUT.glob("*.m4a")):
-            if f.name in ("broken-nomoov.mp4", "frag-cmaf.mp4"):                              # no moov; samples in moof
+            if f.name in ("broken-nomoov.mp4", "frag-cmaf.mp4", "phone-sidx.mp4"):  # no moov; samples in moof
                 continue
             captured = probe(f.name)
             for index, samples in enumerate(tables_of(f.read_bytes())):

@@ -138,19 +138,30 @@ def _traf_line(data, moof, traf, tfhd, trex, samples):
     runs = [frag.read_trun(data, b) for b in traf.children if b.type == "trun"]
     sources = [_source(column, name, tfhd, trex, runs) for column, name in
                zip(("duration", "size", "flags"), frag.DEFAULTS[1:])]
-    sources.append("cto from trun" if all("sample_composition_time_offset" in r for r in runs) else "cto 0")
+    sources.append("cto " + _from_runs("sample_composition_time_offset", runs, "0"))
     return (f"moof {moof.start} traf {traf.start}: track {tfhd['track_ID']}, {len(runs)} trun, {len(samples)} "
             f"samples, tfdt {frag.read_tfdt(data, boxes.find(traf.children, 'tfdt'))}; " + "; ".join(sources))
 
 
 def _source(column, name, tfhd, trex, runs):
-    """Where one field of a traf's samples comes from: `size from trun`, or `duration 512 from tfhd`."""
-    if all("sample_" + column in run for run in runs):
-        return f"{column} from trun"
+    """Where one field of a traf's samples comes from: `size from trun`, or `duration 512 from tfhd`, and, when only
+    some of its runs carry the column, both: `size from trun (29 of 30 runs), else 6517 from tfhd` (episode 31)."""
     value, where = (tfhd[name], "tfhd") if name in tfhd else (trex[name], "trex")
-    shown = f"0x{value:08x}" if column == "flags" else value
-    first = "first_sample_flags from trun, then " if column == "flags" and "first_sample_flags" in runs[0] else ""
-    return f"{column} {first}{shown} from {where}"
+    fallback = f"{f'0x{value:08x}' if column == 'flags' else value} from {where}"
+    have = sum("first_sample_flags" in run for run in runs)
+    if column == "flags" and have:
+        some = "" if have == len(runs) else f" ({have} of {len(runs)} runs)"
+        fallback = f"first_sample_flags from trun{some}, then {fallback}"
+    return f"{column} " + _from_runs("sample_" + column, runs, fallback)
+
+
+def _from_runs(key, runs, fallback):
+    """`from trun` when every run has the column `key`, `fallback` when none has, and when only some do, `from trun
+    (k of n runs), else ` and the fallback (episode 30 said only one of the two)."""
+    have = sum(key in run for run in runs)
+    if have == len(runs):
+        return "from trun"
+    return f"from trun ({have} of {len(runs)} runs), else {fallback}" if have else fallback
 
 
 def _print_pcm(data, tree):
@@ -213,25 +224,90 @@ def _print_priming(data, tree):
 
 
 def cmd_samples(args):
-    """`samples FILE [--track N] [--pts]`: print a track's sample table, one sample a line, its columns in lookup
-    order: decode time (stts), keyframe (stss), offset (stsc + stco), size (stsz). Tracks count from 1 in file order.
-    `--pts` prints dts and pts on the movie's timeline (ctts and the edit list applied, as ffprobe prints them)
-    and each sample's place in display order. (`--rewrite-check` runs cmd_rewrite_check instead, episode 26.)"""
+    """`samples FILE [--track N] [--pts] [--at MS]`: print a track's sample table, one sample a line, its columns in
+    lookup order: decode time (stts), keyframe (stss), offset (stsc + stco), size (stsz). Tracks count from 1 in file
+    order. `--pts` prints dts and pts on the movie's timeline (ctts and the edit list applied, as ffprobe prints them)
+    and each sample's place in display order. A fragmented file (episode 31) lists the samples from its moofs, with
+    the fragment each came from; `--at` then finds the fragment for a moment with each index the file has
+    (_print_lookup) instead. (`--rewrite-check` runs cmd_rewrite_check instead, episode 26.)"""
     from . import boxes, tables
     data = boxes.read_mp4(args.file)
-    traks = boxes.find_all(boxes.walk(data), "moov/trak")
+    tree = boxes.walk(data)
+    traks = boxes.find_all(tree, "moov/trak")
     if not 1 <= args.track <= len(traks):
         print(f"error: no track {args.track}, the file has {len(traks)}")
         return 1
     trak = traks[args.track - 1]
     handler = tables.read_hdlr(data, boxes.find(trak.children, "mdia/hdlr"))["handler_type"]
     timescale = tables.read_mdhd(data, boxes.find(trak.children, "mdia/mdhd"))["timescale"]
-    samples = tables.sample_table(data, trak)
-    print(f"track {args.track} {handler}, timescale {timescale}, {len(samples)} samples")
-    print("sample dts pts display key offset size" if args.pts else "sample dts key offset size")
-    for s, times in zip(samples, _time_columns(data, trak, samples, args.pts)):
-        print(s.number, *times, "K" if s.key else "-", s.offset, s.size)
+    samples, moofs, track_ID = _track_samples(data, tree, trak)
+    print(f"track {args.track} {handler}, timescale {timescale}, {len(samples)} samples{_in_fragments(moofs)}")
+    if moofs and args.at is not None:
+        return _print_lookup(data, tree, track_ID, args.at * timescale // 1000, samples, moofs)
+    return _print_samples(data, trak, samples, args.pts, moofs)
+
+
+def _track_samples(data, tree, trak):
+    """A track's samples, its file's moofs (their first bytes) and its track_ID: from the stbl, or, when the file has
+    moofs, from them (frag.fragment_samples, episode 31)."""
+    from . import boxes, frag, tables
+    moofs = [b.start for b in tree if b.type == "moof"]
+    track_ID = tables.read_tkhd(data, boxes.find(trak.children, "tkhd"))["track_ID"]
+    if not moofs:
+        return tables.sample_table(data, trak), moofs, track_ID
+    return frag.fragment_samples(data, tree)[track_ID], moofs, track_ID
+
+
+def _in_fragments(moofs):
+    """The end of samples' first line for a fragmented file: ` in 2 fragments (moof 1242, 55016)`; else nothing."""
+    return f" in {len(moofs)} fragments (moof {', '.join(map(str, moofs))})" if moofs else ""
+
+
+def _print_samples(data, trak, samples, pts, moofs):
+    """The table, a sample a line; from a fragmented file each line ends with the fragment it came from."""
+    print(("sample dts pts display key offset size" if pts else "sample dts key offset size")
+          + (" fragment" if moofs else ""))
+    for s, times in zip(samples, _time_columns(data, trak, samples, pts)):
+        print(s.number, *times, "K" if s.key else "-", s.offset, s.size, *([s.chunk] if moofs else []))
     return 0
+
+
+def _print_lookup(data, tree, track_ID, t, samples, moofs):
+    """`samples --at MS` on a fragmented file: the fragment that holds time `t` (the track's ticks), found with each
+    index without reading a moof (the track's sidx, its tfra), then the moofs' own answer, to check them."""
+    from . import frag
+    print(f"at {t} ticks")
+    _print_sidx(data, tree, track_ID, t)
+    mfra = frag.back_gate(data)
+    if mfra:
+        _print_tfra(data, mfra, track_ID, t)
+    starts = sorted({(min(s.cts for s in samples if s.chunk == c), c) for c in {s.chunk for s in samples}})
+    time, n = frag.fragment_at(starts, t)
+    held = [s for s in samples if s.chunk == n]
+    print(f"moofs: fragment {n}, moof {moofs[n - 1]}, earliest cts {time}: samples {held[0].number} to "
+          f"{held[-1].number}, from byte {held[0].offset}")
+    return 0
+
+
+def _print_sidx(data, tree, track_ID, t):
+    """The block directory: the track's sidx (before the fragments; ffmpeg writes it on the track's clock) lists
+    byte ranges and their start times; the range for `t` is the last that starts at or before it."""
+    from . import boxes, frag
+    for sidx in (frag.read_sidx(data, b) for b in boxes.find_all(tree, "sidx")):
+        if sidx["reference_ID"] == track_ID:
+            time, start, end = frag.fragment_at(sidx["ranges"], t)
+            print(f"sidx: ranges start at {[r[0] for r in sidx['ranges']]}: {time}, bytes {start} to {end}")
+
+
+def _print_tfra(data, mfra, track_ID, t):
+    """The back-gate index: the mfra found from the file's last 4 bytes (mfro), and in it the track's tfra, each
+    random access point's time and moof."""
+    from . import boxes, frag
+    for tfra in (frag.read_tfra(data, b) for b in boxes.find_all(mfra.children, "tfra")):
+        if tfra["track_ID"] == track_ID:
+            time, moof = frag.fragment_at(tfra["entries"], t)[:2]
+            print(f"mfra {mfra.start} (the last 4 bytes: {mfra.size}): tfra times {[e[0] for e in tfra['entries']]}: "
+                  f"{time}, moof {moof}")
 
 
 def _time_columns(data, trak, samples, pts):
@@ -793,6 +869,7 @@ def _add_samples(sub):
     s.add_argument("file", help="the MP4 file to read")
     s.add_argument("--track", type=int, default=1, help="which track, counted from 1 in file order (default 1)")
     s.add_argument("--pts", action="store_true", help="dts and pts with the edit list applied, and the display order")
+    s.add_argument("--at", type=int, help="fragmented file: find the fragment that holds this many milliseconds")
     s.add_argument("--rewrite-check", dest="func", action="store_const", const=cmd_rewrite_check,
                    help="write every track's sample tables back from its samples and compare them with the file's")
     s.set_defaults(func=cmd_samples)

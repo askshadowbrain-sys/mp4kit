@@ -38,6 +38,7 @@ cmd_for() {
     ep28) echo 'python3 -m mp4kit dump testfiles/out/phone.mp4 --rewrite-check' ;;
     ep29) echo 'python3 -m mp4kit mux --video testfiles/streams/phone.h264 --audio testfiles/streams/phone.aac --fps 30 --priming 1024 -o "$TMPOUT/out.mp4" && ffmpeg -v error -i "$TMPOUT/out.mp4" -f null -' ;;
     ep30) echo 'python3 -m mp4kit dump testfiles/out/frag-cmaf.mp4 --find trun' ;;
+    ep31) echo 'python3 -m mp4kit samples testfiles/out/frag-cmaf.mp4' ;;
     *) return 1 ;;
   esac
 }

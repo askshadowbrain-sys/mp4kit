@@ -12,3 +12,8 @@ The files are synthetic (testsrc2 and a sine). `make.sh` stays in the NEW-B1 ser
   `series/mp4-from-scratch/testfiles/streams/`, made by its make.sh from phone.mp4 (`-map 0:v:0 -c copy -f h264`,
   `-map 0:a:0 -c copy -f adts`); byte-identical to `mp4kit extract phone.mp4 --track 1` / `--track 2`. They live outside
   `out/` because the ep09-ep28 tests walk every file in `out/` as an MP4.
+- phone-sidx.mp4 (`out/`, its three `captures/` files and the new MANIFEST.md) copied on 2026-11-22 from NEW-B1
+  commit 18bee861, which adds its recipe to make.sh (phone.mp4 `-c copy -movflags
+  +frag_keyframe+empty_moov+default_base_moof+global_sidx -movie_timescale 48000`: two sidx, one per track, then two
+  moof+mdat pairs and an mfra). The other 17 files and their captures rebuild byte-identically with it. The MANIFEST
+  copy also brings in the streams/ paragraph NEW-B1 added for episode 29.

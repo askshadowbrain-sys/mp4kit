@@ -2,7 +2,12 @@
 each moof is a pocket map room for the parcels beside it, one traf (track fragment) per corridor. A track's samples
 come from three places: trex (in the moov's mvex: the track's defaults), tfhd (this traf's defaults, and where its
 offsets count from), and trun (the run itself: a table with a column for each field it carries); tfdt says when
-the traf's first sample is decoded."""
+the traf's first sample is decoded. Episode 31: every sample of every track, moof by moof (fragment_samples), and
+the two indexes that find a fragment by time without reading the file through: the block directory (sidx, before
+the fragments: each one's byte range and duration) and the back-gate index (mfra at the end, found from its last 4
+bytes (mfro): each random access point's time and moof, per track in a tfra)."""
+import bisect
+import dataclasses
 import struct
 
 from . import boxes
@@ -86,6 +91,83 @@ def traf_samples(data, moof, traf, trex, implicit):
     return samples
 
 
+def fragment_samples(data, tree):
+    """Every track's samples, listed from the moofs alone: each traf of each moof in file order (traf_samples),
+    numbered from 1 per track. A sample's chunk is the fragment it came from (1 = the first moof)."""
+    trex = {t["track_ID"]: t for t in (read_trex(data, b) for b in boxes.find_all(tree, "moov/mvex/trex"))}
+    tracks = {track_ID: [] for track_ID in trex}
+    for fragment, moof in enumerate((b for b in tree if b.type == "moof"), 1):
+        implicit = moof.start
+        for traf in boxes.find_all(moof.children, "traf"):
+            track_ID = read_tfhd(data, boxes.find(traf.children, "tfhd"))["track_ID"]
+            for s in traf_samples(data, moof, traf, trex[track_ID], implicit):
+                tracks[track_ID].append(dataclasses.replace(s, number=len(tracks[track_ID]) + 1, chunk=fragment))
+                implicit = s.offset + s.size
+    return tracks
+
+
+def read_sidx(data, box):
+    """The block directory: for one track (reference_ID) on its own clock (timescale), the presentation time the
+    first reference starts at, and where it starts (first_offset bytes after this box's end); then one row per
+    reference: (reference_type (1 = another sidx), referenced_size, subsegment_duration, starts_with_SAP, SAP_type,
+    SAP_delta_time). `ranges` adds them up: (start time, first byte, end byte) of each reference."""
+    version = boxes.read_fullbox(data, box)[0]
+    reference_ID, timescale = struct.unpack_from(">II", data, box.payload + 4)
+    wide = ">QQ" if version == 1 else ">II"
+    time, first_offset = struct.unpack_from(wide, data, box.payload + 12)
+    at = box.payload + 12 + struct.calcsize(wide) + 2                        # + 2 reserved bytes
+    rows = [(size >> 31, size & 0x7FFFFFFF, duration, sap >> 31, sap >> 28 & 7, sap & 0x0FFFFFFF)
+            for size, duration, sap in struct.iter_unpack(">III", data[at + 2:at + 2 + 12 * boxes.u16(data, at)])]
+    fields = {"version": version, "reference_ID": reference_ID, "timescale": timescale,
+              "earliest_presentation_time": time, "first_offset": first_offset, "references": rows, "ranges": []}
+    start = box.end + first_offset
+    for _, size, duration, *_ in rows:
+        fields["ranges"].append((time, start, start + size))
+        time, start = time + duration, start + size
+    return fields
+
+
+def read_tfra(data, box):
+    """The back-gate index for one track: for each random access point its presentation time and the moof that holds
+    it, then which traf, trun and sample in that moof (each number 1 to 4 bytes long, as length_size_of_traf_num,
+    _trun_num and _sample_num say, less one). Rows (time, moof_offset, traf, trun, sample)."""
+    version = boxes.read_fullbox(data, box)[0]
+    track_ID, lengths, count = struct.unpack_from(">III", data, box.payload + 4)
+    widths, at, entries = [(lengths >> shift & 3) + 1 for shift in (4, 2, 0)], box.payload + 16, []
+    for _ in range(count):
+        row = list(struct.unpack_from(">QQ" if version == 1 else ">II", data, at))
+        at = at + (16 if version == 1 else 8)
+        for width in widths:
+            row.append(int.from_bytes(data[at:at + width], "big"))
+            at = at + width
+        entries.append(tuple(row))
+    return {"version": version, "track_ID": track_ID, "entries": entries}
+
+
+def read_mfro(data, box):
+    """mfra's last box: the size of the whole mfra, so the file's last 4 bytes say how far back the index starts."""
+    return boxes.u32(data, box.payload + 4)
+
+
+def back_gate(data):
+    """The mfra, found from the back of the file as a reader does (mov.c mov_read_mfra): the last 4 bytes are mfro's
+    copy of mfra's size; step back that far and an mfra of that size must start there. None if not."""
+    size = boxes.u32(data, len(data) - 4) if len(data) >= 16 else 0
+    if not 16 <= size <= len(data):
+        return None
+    try:
+        mfra = boxes.walk(data, len(data) - size)[0]
+    except boxes.BoxError:
+        return None
+    return mfra if mfra.type == "mfra" and mfra.size == size else None
+
+
+def fragment_at(index, t):
+    """The row of an index (rows sorted by start time, first) whose start is the last at or before time `t`; the
+    first row for a `t` before it (mov.c search_frag_timestamp and mov_seek_fragment do the same)."""
+    return index[max(bisect.bisect_right([row[0] for row in index], t) - 1, 0)]
+
+
 def in_hex(fields):
     """dump's view of a fragment box: its flag words in hex (flags=0x000a05), as the specification writes them."""
     return {k: f"0x{v:0{6 if k == 'flags' else 8}x}" if k.endswith("flags") and isinstance(v, int) else v
@@ -98,3 +180,6 @@ boxes.DECODERS["tfhd"] = lambda data, box: in_hex(read_tfhd(data, box))
 boxes.DECODERS["tfdt"] = lambda data, box: {"version": boxes.read_fullbox(data, box)[0],
                                             "baseMediaDecodeTime": read_tfdt(data, box)}
 boxes.DECODERS["trun"] = lambda data, box: in_hex(read_trun(data, box))
+boxes.DECODERS["sidx"] = read_sidx
+boxes.DECODERS["tfra"] = read_tfra
+boxes.DECODERS["mfro"] = lambda data, box: {"mfra_size": read_mfro(data, box)}

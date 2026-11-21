@@ -133,7 +133,7 @@ class Ep15(unittest.TestCase):
 
     def test_matches_ffprobe(self):
         for f in sorted(OUT.glob("*.mp4")) + sorted(OUT.glob("*.m4a")):
-            if f.name in ("broken-nomoov.mp4", "frag-cmaf.mp4"):                    # no moov; samples in moof
+            if f.name in ("broken-nomoov.mp4", "frag-cmaf.mp4", "phone-sidx.mp4"):  # no moov; samples in moof
                 continue
             captured = json.loads((CAPS / f"{f.name}.probe.json").read_text())
             for index, (stsc, stco, stsz) in enumerate(drawers(f.read_bytes())):
