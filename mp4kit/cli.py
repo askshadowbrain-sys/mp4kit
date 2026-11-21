@@ -86,7 +86,7 @@ def cmd_dump(args):
     """`dump FILE [--find TYPE] [--pcm]`: print the box tree, indented by depth, or only the boxes of one type by
     their path, each with any decoded fields; or, with --pcm, each sound track's PCM arithmetic."""
     from . import boxes
-    from . import audio, tables  # noqa: F401  (importing them registers their readers in boxes.DECODERS)
+    from . import audio, frag, tables  # noqa: F401  (importing them registers their readers in boxes.DECODERS)
     data = boxes.read_mp4(args.file)
     try:
         tree = boxes.walk(data)
@@ -110,6 +110,47 @@ def _dump_view(data, tree, args):
         print(f"no {args.find} box")
     elif args.find == "elst":
         _print_priming(data, tree)
+    elif args.find == "trun":
+        _print_fragments(data, tree)
+
+
+def _print_fragments(data, tree):
+    """dump --find trun's second part (episode 30): each traf's samples, listed from its moof, under a line that says
+    where each field came from: the trun's own column, else the tfhd's default, else the trex's."""
+    from . import boxes, frag
+    trex = {t["track_ID"]: t for t in (frag.read_trex(data, b) for b in boxes.find_all(tree, "moov/mvex/trex"))}
+    for moof in (b for b in tree if b.type == "moof"):
+        implicit = moof.start
+        for traf in boxes.find_all(moof.children, "traf"):
+            tfhd = frag.read_tfhd(data, boxes.find(traf.children, "tfhd"))
+            samples = frag.traf_samples(data, moof, traf, trex[tfhd["track_ID"]], implicit)
+            print(_traf_line(data, moof, traf, tfhd, trex[tfhd["track_ID"]], samples))
+            print("sample dts cto size offset key")
+            for s in samples:
+                print(f"{s.number} {s.dts} {s.cts - s.dts} {s.size} {s.offset} {'K' if s.key else '-'}")
+            implicit = samples[-1].offset + samples[-1].size if samples else implicit
+
+
+def _traf_line(data, moof, traf, tfhd, trex, samples):
+    """The line above a traf's samples: its moof, its track, how many runs and samples, its tfdt, and the source of
+    each field (moof 1242 traf 1266: track 1, 1 trun, 30 samples, tfdt 0; duration 512 from tfhd; ...)."""
+    from . import boxes, frag
+    runs = [frag.read_trun(data, b) for b in traf.children if b.type == "trun"]
+    sources = [_source(column, name, tfhd, trex, runs) for column, name in
+               zip(("duration", "size", "flags"), frag.DEFAULTS[1:])]
+    sources.append("cto from trun" if all("sample_composition_time_offset" in r for r in runs) else "cto 0")
+    return (f"moof {moof.start} traf {traf.start}: track {tfhd['track_ID']}, {len(runs)} trun, {len(samples)} "
+            f"samples, tfdt {frag.read_tfdt(data, boxes.find(traf.children, 'tfdt'))}; " + "; ".join(sources))
+
+
+def _source(column, name, tfhd, trex, runs):
+    """Where one field of a traf's samples comes from: `size from trun`, or `duration 512 from tfhd`."""
+    if all("sample_" + column in run for run in runs):
+        return f"{column} from trun"
+    value, where = (tfhd[name], "tfhd") if name in tfhd else (trex[name], "trex")
+    shown = f"0x{value:08x}" if column == "flags" else value
+    first = "first_sample_flags from trun, then " if column == "flags" and "first_sample_flags" in runs[0] else ""
+    return f"{column} {first}{shown} from {where}"
 
 
 def _print_pcm(data, tree):

@@ -41,6 +41,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep27 | cli.py +44/-1, mux.py +38/-2 | 56 | ~23 | `mux.faststart` 15 (21), at the limit, `cli._print_move` 13 (16), `cli.cmd_faststart` 11 (15), `mux.shift_chunk_offsets` 6 (10), `cli._add_faststart` 4 (6); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check` and `mux.faststart` 15 overall |
 | ep28 | cli.py +99/-0, mux.py +77/-2 | 106 | ~36 | `cli._rewrite_track_headers` 15 (19), at the limit, `cli._compare_box` 14 (18), `cli.cmd_header_check` 13 (17), `cli._rewrite_entry` 9 (12), `cli._rewrite_movie` 8 (11), `mux.write_avcc` 7 (10), `cli._bare_avc1` 5 (8), `mux.write_tkhd` 3 (7), `mux.write_avc1` 3 (6), `mux.write_mvhd` 2 (5), `mux.write_mdhd` 2 (5), `mux.write_ftyp`, `write_hdlr`, `write_media_header`, `write_dinf`, `write_elst` 1 each; `cli.cmd_dump` keeps its body (`--rewrite-check` is an argparse `store_const` that swaps `func`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
 | ep29 | cli.py +48/-1, mux.py +130/-1, tables.py +4/-2 | 119 | ~73 | `mux.video_track` 14 (19), `mux.mux` 14 (18), `cli.cmd_mux` 12 (16), `cli._print_built` 12 (15), `mux.display_order` 8 (12), `mux.write_trak` 8 (11), `cli._add_mux` 8 (10), `mux.audio_track` 7 (11), `mux.write_stsd` 7 (9), `mux.write_esds` 4 (8), `mux.video_clock` 4 (7), `mux.descriptor` 2 (5), `mux.write_mp4a` 2 (5); `tables.Track` gains one field (`payloads`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
+| ep30 | cli.py +42/-1, frag.py +100 (new) | 92 | ~34 | `frag.traf_samples` 13 (19), `cli._print_fragments` 12 (15), `frag.read_trun` 11 (15), `cli._traf_line` 7 (10), `frag.read_tfhd` 7 (10), `cli._source` 6 (8), `frag.read_trex` 2 (5), `frag.read_tfdt` 2 (5), `frag.in_hex` 2 (4), `frag.column` 1 (3); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
 
 ## Functions over 15 lines
 
@@ -692,4 +693,35 @@ arithmetic became `picture_size`, so its body is 12 lines.
   - **Blocks the Build-it scene shows:** the plan's seven and `descriptor`.
   - **On-screen trim:** show `video_clock`, `display_order`, `write_stsd`, `_print_built`, `_add_mux` and the
     `Track.payloads` field as finished code; type the plan's seven and `descriptor` (about 71 lines).
+- **ep30 (92, plan ~34).** The plan's four readers come to 26 code lines with their `def` lines (`frag.read_trex` 3,
+  `read_tfhd` 8, `read_tfdt` 3, `read_trun` 12), inside the plan's ~34. The rest is the goal itself, "list a fragment's
+  samples from its moof", which the plan's four do not reach: `frag.traf_samples` 14 and `column` 2 (the defaults chain:
+  the trun's column, or its first_sample_flags for a run's first sample, else the tfhd's default, else the trex's; times
+  from tfdt; offsets from the tfhd's base plus each run's data_offset), 7 lines of constants (`DEFAULTS`,
+  `TFHD_FIELDS`, `TRUN_COLUMNS`, `NON_SYNC`, `DEFAULT_BASE_IS_MOOF`), `in_hex` 3 and six `DECODERS` lines (flag words
+  in hex; `mfhd`'s sequence_number), three imports; in cli.py `_print_fragments` 13, `_traf_line` 8, `_source` 7, two
+  lines in `_dump_view` and `frag` added to `cmd_dump`'s import (31). `traf_samples` gives `tables.Sample` rows, so
+  episode 31's `fragment_samples` is a loop over every moof and traf that numbers them per track (its ~35 shrinks).
+  Signatures: the plan's four as written (`read_tfdt` returns the int); `traf_samples(data, moof, traf, trex,
+  implicit)` is new (`implicit`: where the last traf's data ended, the base when the tfhd has neither
+  base_data_offset nor default-base-is-moof).
+  - **The numbers:** trex ×2: track 1 and 2, sample_description_index 1, every other default 0 (ffmpeg's movenc
+    writes 1, then 0, 0, 0: the plan's "every default 0" misses the 1). tfhd flags 0x02003a in all four trafs
+    (sample description index 1, default duration, size and flags, default-base-is-moof; no base_data_offset): video
+    512, 5,824, 0x01010000; sound 1,024, 238 (fragment 2: 249), 0x02000000. tfdt version 1: 0, 0, 15,360, 46,080.
+    trun version 1: video 0xa05 (data_offset, first_sample_flags 0x02000000, size and cto columns), 30 + 30 samples,
+    data_offset 616 and 836; sound 0x201 (size only) 45, data_offset 42,253, then 0x301 (duration and size: the last
+    frame is 768) 50, data_offset 43,548. First bytes 1,858, 43,495, 55,852, 98,564. Every sample's offset, size,
+    dts and key flag is ffprobe's packet, and its cts + 512 (mov.c's dts_shift: the most negative cto, negated) is
+    ffprobe's video pts; sound pts = cts.
+  - **One trun per traf here, not always:** frag-cmaf has 4 trafs and 4 truns; ffmpeg writes a new trun whenever a
+    traf's samples stop being contiguous in the mdat (movenc `mov_write_traf_tag`), so `-frag_interleave 1` gives
+    trafs of up to 29 truns, which `traf_samples` reads the same (checked in a scratch file, not committed).
+  - **Not done here:** a traf with no tfdt (the dts would be the sum of the earlier fragments: episode 31's loop could
+    carry it), tfhd duration-is-empty, more than one sample description, sample_flags beyond the non-sync bit
+    (ffmpeg's mov.c also treats sample_depends_on = 1 as not a keyframe; for ffmpeg's files the two agree), mehd, a
+    missing trex (mov.c warns and skips the traf; here a KeyError).
+  - **Blocks the Build-it scene shows:** the plan's four and `traf_samples` with `column`.
+  - **On-screen trim:** show the constants, `in_hex`, the `DECODERS` lines, `_print_fragments`, `_traf_line` and
+    `_source` as finished code; type the four readers, `column` and `traf_samples` (about 42 lines).
 - ep01–ep03 are 6–10 lines over their estimates.
