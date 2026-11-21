@@ -33,6 +33,7 @@ cmd_for() {
     ep23) echo 'python3 -m mp4kit extract testfiles/out/phone.mp4 --track 2 -o "$TMPOUT/phone.aac"' ;;
     ep24) echo 'python3 -m mp4kit chunks testfiles/out/phone.mp4' ;;
     ep25) echo 'python3 -m mp4kit packets testfiles/out/phone.mp4' ;;
+    ep26) echo 'python3 -m mp4kit samples testfiles/out/phone.mp4 --rewrite-check' ;;
     *) return 1 ;;
   esac
 }

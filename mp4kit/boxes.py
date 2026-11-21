@@ -1,4 +1,4 @@
-"""Box reader core: big-endian numbers and box headers."""
+"""Box reader core: big-endian numbers and box headers. Episode 26: boxes built instead of opened (box, full_box)."""
 import mmap
 import os
 import struct
@@ -76,6 +76,20 @@ def read_fullbox(data, box):
     """A full box's stamp: version (1 byte) and flags (3 bytes) at the start of its payload."""
     word = u32(data, box.payload)
     return word >> 24, word & 0xFFFFFF
+
+
+def box(kind, *parts):
+    """A box, built instead of opened (episode 26): its parts joined into the payload, behind an 8-byte lid of size
+    (counting the lid itself) and type. box("free") = 00 00 00 08 66 72 65 65. The reverse of read_header, 32-bit
+    sizes only."""
+    payload = b"".join(parts)
+    return struct.pack(">I4s", 8 + len(payload), kind.encode("latin-1")) + payload
+
+
+def full_box(kind, version, flags, *parts):
+    """A stamped box: version (1 byte) and flags (3 bytes) first in the payload, then the parts. The reverse of
+    read_fullbox."""
+    return box(kind, struct.pack(">I", version << 24 | flags), *parts)
 
 
 def read_ftyp(data, box):

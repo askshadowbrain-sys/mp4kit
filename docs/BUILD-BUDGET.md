@@ -37,6 +37,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep23 | boxes.py +1/-1, cli.py +81/-1, nal.py +14/-1, tables.py +50/-2 | 93 | ~34 | `cli.cmd_extract` 15 (19), at the limit, `tables.read_tracks` 9 (11), `cli._srt_track` 8 (11), `cli._plain_stream` 7 (9), `nal.annexb_sample` 6 (10), `cli._annexb_track` 5 (7), `tables._entry` 4 (7), `cli._adts_track` 3 (5), `cli._srt_time` 2 (4), `tables.read_tref` 1 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route` and `cli._sound_tracks` 15 overall |
 | ep24 | cli.py +56/-1, mux.py +28 (new), tables.py +19/-4 | 62 | ~25 | `cli.cmd_chunks` 15 (20), at the limit, `cli._print_chunks` 12 (15), `mux.interleave` 8 (13), `tables.chunk_list` 5 (9), `cli._chunk_columns` 4 (7), `mux.timeline` 2 (6); `tables.sample_table` keeps 15 (its chunk number rides on two existing lines); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks` and `cli.cmd_chunks` 15 overall |
 | ep25 | cli.py +58/-1, timing.py +34/-1 | 59 | ~20 | `cli.cmd_packets` 15 (20), at the limit, `timing.packets` 11 (16), `cli._print_packets` 11 (14), `cli._print_streams` 8 (11), `timing.play_order` 1 (4), `timing.reorder_depth` 1 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks` and `cli.cmd_packets` 15 overall |
+| ep26 | boxes.py +15/-1, cli.py +60/-1, mux.py +56/-2 | 79 | ~28 | `cli.cmd_rewrite_check` 15 (19), at the limit, `cli._compare_stbl` 13 (19), `mux.write_stbl` 12 (17), `cli._rewrite_track` 10 (13), `mux.runs` 7 (10), `mux.write_stsz` 3 (6), `boxes.box` 2 (6), `mux.stsc_rules` 1 (5), `mux.table_box` 1 (4), `boxes.full_box` 1 (4); `cli.cmd_samples` keeps 15 (`--rewrite-check` is an argparse `store_const` that swaps `func`, no line in its body); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples` and `cli.cmd_rewrite_check` 15 overall |
 
 ## Functions over 15 lines
 
@@ -582,4 +583,31 @@ arithmetic became `picture_size`, so its body is 12 lines.
     `reorder_depth`; `cmd_packets`.
   - **On-screen trim:** show `_print_packets`, `_print_streams`, `_add_packets` and the import as finished code; type
     the rest (about 35 lines).
+- **ep26 (79, plan ~28).** The plan's seven names come to 34 code lines (`boxes.box` 3, `boxes.full_box` 2, `mux.runs`
+  8, `mux.stsc_rules` 2, `mux.table_box` 2, `mux.write_stsz` 4, `mux.write_stbl` 13), 36 with `mux.py`'s imports
+  (`struct`, `boxes`). Each keeps the plan's signature. `write_stbl(track, stsd, chunk_offsets, chunks)` writes the drawers in
+  ffmpeg's order: stsd (as given), stts (each sample's duration to the next dts, the last to mdhd's duration, in `runs`),
+  stss (only when some sample is not a keyframe), ctts (only when some cts is not its dts; version 1 if a slip is
+  negative), stsc (`stsc_rules(chunks)`), stsz (`write_stsz`: one size for all → that size and no list), stco (co64 only
+  for an offset past 4 GiB). The other 43 are the check, `samples FILE --rewrite-check`:
+  - **The command (43):** `cmd_rewrite_check` (16), `_rewrite_track` (11: the file's stsd copied, its chunks from
+    `tables.chunk_list([track])`), `_compare_stbl` (14: each box of the file's stbl against the written one, then the
+    stbl, also without the boxes not written and in write order) and `_add_samples`' two lines. The flag is an argparse
+    `store_const` on `func`, so `cmd_samples` is untouched.
+  - **The numbers:** every table write_stbl writes is the file's own, byte for byte, in every track of all 16 files
+    with a moov (27 tracks) but phone-large; phone's video stbl is all 1,169 bytes the same; phone's sound stbl is 1,500
+    against 1,446, the same boxes without sgpd (26) and sbgp (28). stsc: phone's video 59 chunks → 2 rules (2, then 1s),
+    its sound 59 chunks (1, 2 or 4 samples) → 51 rules; f1 [4, 4, 2, 2] → [(1, 4, 1), (3, 2, 1)]. stsz's one-size form
+    is phone-chapters' chapter track (17, 2: 20 bytes). `mux.interleave`'s counts (ep24) give phone's stsc again.
+  - **Where the stbl is not the file's:** boxes write_stbl does not make (the AAC roll slip sgpd/sbgp in every ffmpeg
+    sound track with samples; sdtp in av1, hdr, hevc, hevc-hev1; senc, saio, saiz in cenc); f2's ctts comes before its
+    stss (minimux's order; the same boxes, moved); phone-large's co64 holds phone's own offsets in 8 bytes each
+    (patch_stco.py), which write_stbl writes as phone's stco, so the check says `no` for phone-large alone.
+  - **Not done here:** sgpd/sbgp, sdtp, senc/saio/saiz; more than one sample entry (stsc's third column is always 1);
+    chunks are taken in offset order (`chunk_list`), so a track whose stco is not ascending would be rewritten sorted
+    (no committed file has one).
+  - **Blocks the Build-it scene shows:** `box` and `full_box`; `runs`; `stsc_rules`; `table_box`; `write_stsz`;
+    `write_stbl`.
+  - **On-screen trim:** show `cmd_rewrite_check`, `_rewrite_track`, `_compare_stbl` and the flag as finished code; type
+    the plan's seven (about 34 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

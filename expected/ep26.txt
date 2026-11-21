@@ -1,0 +1,21 @@
+each track's stbl written back from its samples (mux.write_stbl), box by box
+box bytes written same
+track 1 vide: 60 samples in 59 chunks, 2 stsc rules
+stsd 193 193 copied
+stts 24 24 yes
+stss 24 24 yes
+ctts 368 368 yes
+stsc 40 40 yes
+stsz 260 260 yes
+stco 252 252 yes
+stbl 1169 1169 yes
+track 2 soun: 95 samples in 59 chunks, 51 stsc rules
+stsd 126 126 copied
+stts 32 32 yes
+stsc 628 628 yes
+stsz 400 400 yes
+stco 252 252 yes
+sgpd 26 - not written
+sbgp 28 - not written
+stbl 1500 1446 the same boxes without sgpd sbgp
+every table written is the file's, byte for byte: yes

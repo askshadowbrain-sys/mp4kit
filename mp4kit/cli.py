@@ -175,7 +175,7 @@ def cmd_samples(args):
     """`samples FILE [--track N] [--pts]`: print a track's sample table, one sample a line, its columns in lookup
     order: decode time (stts), keyframe (stss), offset (stsc + stco), size (stsz). Tracks count from 1 in file order.
     `--pts` prints dts and pts on the movie's timeline (ctts and the edit list applied, as ffprobe prints them)
-    and each sample's place in display order."""
+    and each sample's place in display order. (`--rewrite-check` runs cmd_rewrite_check instead, episode 26.)"""
     from . import boxes, tables
     data = boxes.read_mp4(args.file)
     traks = boxes.find_all(boxes.walk(data), "moov/trak")
@@ -206,6 +206,63 @@ def _time_columns(data, trak, samples, pts):
     pts = timing.presentation_times([s.cts for s in samples], elst, *clocks)
     shown = {s.number: place for place, s in enumerate(sorted(samples, key=lambda s: s.cts), 1)}
     return [(d, p, shown[s.number]) for s, d, p in zip(samples, dts, pts)]
+
+
+def cmd_rewrite_check(args):
+    """`samples FILE --rewrite-check`: the workshop's test. Each track's stbl written back from its samples
+    (_rewrite_track), then compared with the file's box by box (_compare_stbl). Last, whether every table written is
+    the file's, byte for byte."""
+    from . import boxes, tables
+    data = boxes.read_mp4(args.file)
+    try:
+        tree = boxes.walk(data)
+        tracks = tables.read_tracks(data, tree)
+        if not tracks:
+            raise boxes.BoxError("no tracks: the file has no moov/trak to write back")
+    except boxes.BoxError as e:
+        print(f"error: {e}")
+        return 1
+    print("each track's stbl written back from its samples (mux.write_stbl), box by box\nbox bytes written same")
+    same = [_rewrite_track(data, n, track, trak)
+            for n, (track, trak) in enumerate(zip(tracks, boxes.find_all(tree, "moov/trak")), 1)]
+    print(f"every table written is the file's, byte for byte: {'yes' if all(same) else 'no'}")
+    return 0
+
+
+def _rewrite_track(data, n, track, trak):
+    """One track's stbl, written by mux.write_stbl from its samples, the file's own stsd (copied) and its chunks
+    (tables.chunk_list: each chunk's offset and sample count), then compared (_compare_stbl)."""
+    from . import boxes, mux, tables
+    stbl = boxes.find(trak.children, "mdia/minf/stbl")
+    chunks = tables.chunk_list([track])
+    counts = [c[3] for c in chunks]
+    print(f"track {n} {track.handler}: {len(track.samples)} samples in {len(chunks)} chunks, "
+          f"{len(mux.stsc_rules(counts))} stsc rules")
+    stsd = boxes.find(stbl.children, "stsd")
+    written = mux.write_stbl(track, data[stsd.start:stsd.end], [c[0] for c in chunks], counts)
+    return _compare_stbl({b.type: bytes(data[b.start:b.end]) for b in stbl.children},
+                         {b.type: written[b.start:b.end] for b in boxes.walk(written)[0].children})
+
+
+def _compare_stbl(old, new):
+    """One track's rows: each box of the file's stbl (`old`, type → bytes) against the written stbl's (`new`): its
+    bytes, the bytes written, and the same or not ("copied": the stsd went in as it was; "not written": a box
+    write_stbl does not make: sgpd, sbgp, sdtp, senc, or a co64 whose offsets fit in stco). Then the stbl: if it
+    differs, is it the same boxes without the ones not written, or in another order? True if every table written is
+    the file's."""
+    from . import boxes
+    for kind in [*old, *(k for k in new if k not in old)]:
+        a, b = old.get(kind), new.get(kind)
+        same = ("copied" if kind == "stsd" else "yes" if a == b else "not written" if b is None
+                else "not in the file" if a is None else "no")
+        print(kind, len(a) if a else "-", len(b) if b else "-", same)
+    whole, written = boxes.box("stbl", *old.values()), boxes.box("stbl", *new.values())
+    left_out, moved = " ".join(k for k in old if k not in new), [k for k in old if k in new] != list(new)
+    kept = boxes.box("stbl", *(old.get(k, b"") for k in new))   # the file's boxes that were written, in write order
+    same = ("yes" if whole == written else "no" if kept != written else "the same boxes"
+            + (f" without {left_out}" if left_out else "") + (" in another order" if moved else ""))
+    print("stbl", len(whole), len(written), same)
+    return all(old.get(k) == new[k] for k in new)
 
 
 def cmd_frame(args):
@@ -526,6 +583,8 @@ def _add_samples(sub):
     s.add_argument("file", help="the MP4 file to read")
     s.add_argument("--track", type=int, default=1, help="which track, counted from 1 in file order (default 1)")
     s.add_argument("--pts", action="store_true", help="dts and pts with the edit list applied, and the display order")
+    s.add_argument("--rewrite-check", dest="func", action="store_const", const=cmd_rewrite_check,
+                   help="write every track's sample tables back from its samples and compare them with the file's")
     s.set_defaults(func=cmd_samples)
 
 
