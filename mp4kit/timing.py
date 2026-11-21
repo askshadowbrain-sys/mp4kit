@@ -1,6 +1,9 @@
 """Time in an MP4. Episode 10: ticks and seconds. Episode 14: decode times from stts. Episode 17: composition
 times, decode time plus the ctts slip (DTS → CTS → PTS: Do Cats Purr). Episode 18: presentation times, the edit
-list applied. Episode 19: the sample on screen at a time, and the keyframe it is decoded from."""
+list applied. Episode 19: the sample on screen at a time, and the keyframe it is decoded from. Episode 25: the
+projection booth, every sample as a player's packet, the order the reader hands them out, and how far a decoder
+reorders them."""
+from fractions import Fraction
 
 
 def seconds(ticks, timescale):
@@ -58,3 +61,33 @@ def sync_before(stss, n):
     if not before:
         raise ValueError(f"no sync sample at or before sample {n} (stss starts at {stss[0]})")
     return max(before)
+
+
+def packets(tracks):
+    """Every sample of every track as ffprobe's packet (-show_packets), in file order (by pos): its stream (ffprobe's
+    stream_index, counted from 0), dts and pts in the track's ticks on the movie's timeline (less the first real edit's
+    media_time, as mux.timeline), the same in seconds (dts_time, pts_time: ticks × time_base, 1 / timescale), its
+    duration in ticks (to the next sample, the last to the track's end), size, pos (its offset) and key."""
+    from . import audio
+    out = []
+    for stream, track in enumerate(tracks):
+        shift, s = audio.priming(track.elst), track.samples
+        ends = [x.dts for x in s[1:]] + [track.duration]
+        for x, end in zip(s, ends):
+            out.append({"stream": stream, "dts": x.dts - shift, "pts": x.cts - shift, "duration": end - x.dts,
+                        "dts_time": Fraction(x.dts - shift, track.timescale),
+                        "pts_time": Fraction(x.cts - shift, track.timescale),
+                        "size": x.size, "pos": x.offset, "key": x.key})
+    return sorted(out, key=lambda p: p["pos"])
+
+
+def play_order(packets):
+    """The order the reader hands packets to the decoders: merged by decode time in seconds (dts_time), a tie to the
+    lower stream. Each decoder takes its own stream's packets in this order and shows them in pts order."""
+    return sorted(packets, key=lambda p: (p["dts_time"], p["stream"]))
+
+
+def reorder_depth(packets):
+    """How many frames a decoder must hold back: the most packets decoded before one packet and shown after it (H.264's
+    max_num_reorder_frames is an upper bound on it). 0: shown in decode order. One stream's packets, in decode order."""
+    return max((sum(q["pts"] > p["pts"] for q in packets[:i]) for i, p in enumerate(packets)), default=0)

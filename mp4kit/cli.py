@@ -391,6 +391,56 @@ def _chunk_columns(track, first, count):
     return sum(s.size for s in samples), float(mux.timeline(track)[first - 1]), (end - samples[0].dts) / track.timescale
 
 
+def cmd_packets(args):
+    """`packets FILE`: the projection booth's first belt. Every sample as a player's packet, in the order the reader
+    hands them to the decoders (timing.play_order: by dts_time), in ffprobe's vocabulary (-show_packets): stream,
+    dts_time, pts_time, dts, pts, duration, size, pos, key; and where each is shown in its stream (by pts). Then
+    whether that order is the file's (by pos), and per stream how far its decoder reorders (timing.reorder_depth)."""
+    from . import boxes, tables, timing
+    data = boxes.read_mp4(args.file)
+    try:
+        tracks = tables.read_tracks(data, boxes.walk(data))
+    except boxes.BoxError as e:
+        print(f"error: {e}")
+        return 1
+    packets = timing.packets(tracks)
+    if not packets:
+        print(f"error: no packets: the moov's tables list no samples ({len(tracks)} tracks)")
+        return 1
+    order = timing.play_order(packets)
+    _print_packets(tracks, packets, order)
+    print(f"play order (by dts_time) is file order (by pos): {'yes' if order == packets else 'no'}")
+    return 0
+
+
+def _print_packets(tracks, packets, order):
+    """The belt, one packet a line in play order, with its place in its own stream's pts order (shown); then each
+    stream's totals (_print_streams)."""
+    shown = {}
+    for n in range(len(tracks)):
+        mine = sorted((p for p in packets if p["stream"] == n), key=lambda p: p["pts"])
+        shown.update({p["pos"]: place for place, p in enumerate(mine, 1)})
+    print(f"{len(packets)} packets: " + ", ".join(f"stream {n} {t.handler} {sum(p['stream'] == n for p in packets)} "
+                                              f"(time_base 1/{t.timescale})" for n, t in enumerate(tracks)))
+    print("packet stream dts_time pts_time dts pts duration size pos key shown")
+    for i, p in enumerate(order, 1):
+        print(i, p["stream"], f"{float(p['dts_time']):.6f}", f"{float(p['pts_time']):.6f}", p["dts"], p["pts"],
+              p["duration"], p["size"], p["pos"], "K" if p["key"] else "-", shown[p["pos"]])
+    _print_streams(tracks, order)
+
+
+def _print_streams(tracks, order):
+    """Each stream's packets, keyframes and reorder depth, and how far its first dts runs before its first pts: the
+    decoder's delay, which an ffmpeg file stores as the edit list's media_time."""
+    from . import timing
+    for n, t in enumerate(tracks):
+        mine = [p for p in order if p["stream"] == n]
+        if mine:
+            early = mine[0]["pts"] - mine[0]["dts"]
+            print(f"stream {n} {t.handler}: {len(mine)} packets, {sum(p['key'] for p in mine)} key, reorder depth "
+                  f"{timing.reorder_depth(mine)}; the first dts is {early} ticks = {early // mine[0]['duration']} x "
+                  f"{mine[0]['duration']} before its pts")
+
 def _show(value):
     """A field as dump prints it: bytes as hex digits (in a list too), anything else as Python prints it."""
     if isinstance(value, list):
@@ -504,12 +554,19 @@ def _add_chunks(sub):
     c.set_defaults(func=cmd_chunks)
 
 
+def _add_packets(sub):
+    """Register the `packets` command."""
+    c = sub.add_parser("packets", help="list every packet in the order a player decodes them")
+    c.add_argument("file", help="the MP4 file to read")
+    c.set_defaults(func=cmd_packets)
+
+
 def main(argv: Optional[list] = None) -> int:
     """Parse the command line and run the chosen subcommand."""
     p = argparse.ArgumentParser(prog="mp4kit")
     sub = p.add_subparsers(dest="cmd", required=True)
     for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes, _add_dump, _add_samples,
-                _add_frame, _add_extract, _add_chunks):
+                _add_frame, _add_extract, _add_chunks, _add_packets):
         add(sub)
     args = p.parse_args(argv)
     return args.func(args)

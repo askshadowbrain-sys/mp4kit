@@ -36,6 +36,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep22 | audio.py +30/-1, cli.py +28/-5, tables.py +36/-1 | 55 | ~12 | `cli._print_priming` 14 (18), `tables.read_sgpd` 12 (16), `tables.read_sbgp` 7 (11), `audio.asc_bytes` 4 (8), `audio.edit_window` 4 (8), `audio.priming` 1 (5); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route` and `cli._sound_tracks` 15 overall |
 | ep23 | boxes.py +1/-1, cli.py +81/-1, nal.py +14/-1, tables.py +50/-2 | 93 | ~34 | `cli.cmd_extract` 15 (19), at the limit, `tables.read_tracks` 9 (11), `cli._srt_track` 8 (11), `cli._plain_stream` 7 (9), `nal.annexb_sample` 6 (10), `cli._annexb_track` 5 (7), `tables._entry` 4 (7), `cli._adts_track` 3 (5), `cli._srt_time` 2 (4), `tables.read_tref` 1 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route` and `cli._sound_tracks` 15 overall |
 | ep24 | cli.py +56/-1, mux.py +28 (new), tables.py +19/-4 | 62 | ~25 | `cli.cmd_chunks` 15 (20), at the limit, `cli._print_chunks` 12 (15), `mux.interleave` 8 (13), `tables.chunk_list` 5 (9), `cli._chunk_columns` 4 (7), `mux.timeline` 2 (6); `tables.sample_table` keeps 15 (its chunk number rides on two existing lines); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks` and `cli.cmd_chunks` 15 overall |
+| ep25 | cli.py +58/-1, timing.py +34/-1 | 59 | ~20 | `cli.cmd_packets` 15 (20), at the limit, `timing.packets` 11 (16), `cli._print_packets` 11 (14), `cli._print_streams` 8 (11), `timing.play_order` 1 (4), `timing.reorder_depth` 1 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks` and `cli.cmd_packets` 15 overall |
 
 ## Functions over 15 lines
 
@@ -553,4 +554,32 @@ arithmetic became `picture_size`, so its body is 12 lines.
     `timeline`; `interleave` (sort the teeth, then cut the runs); `cmd_chunks`.
   - **On-screen trim:** show `_print_chunks`, `_chunk_columns`, `_add_chunks`, the imports and the `sample_table`
     change as finished code; type the rest (about 35 lines).
+- **ep25 (59, plan ~20).** The plan's three names come to 30 code lines: `timing.packets` 12, `timing.play_order` 2
+  and `cli.cmd_packets` 16. `packets(tracks)` keeps the plan's shape, a list of dicts in ffprobe's vocabulary (G09):
+  `stream` (ffprobe's stream_index, from 0), `dts`, `pts` (ticks on the movie's timeline: stored dts / cts less the first
+  real edit's media_time, as `mux.timeline`), `dts_time`, `pts_time` (Fractions, ticks / timescale), `duration` (to the
+  next sample's dts; the last to mdhd's duration), `size`, `pos`, `key`, sorted by pos. With the times printed to 6
+  decimals it is the committed probe.json's `packets` for all 155 of phone's and for 11 more files (every copy of phone
+  but broken-stco, f1, f2, aac-only, av1, hevc, hevc-hev1, hdr). `play_order(packets)` merges them by `(dts_time,
+  stream)`, the reader's belt; for every one of those files it is file order. The other 29:
+  - **How far a decoder reorders (2):** `timing.reorder_depth(packets)`, the most packets decoded before one and shown
+    after it (H.264's `max_num_reorder_frames` is an upper bound on it, R§19): phone 1, f2 1, f1 0, hevc 2, sound 0.
+  - **The printing (26):** `_print_packets` (12; the `shown` column is a packet's place in its stream's pts order),
+    `_print_streams` (9), `_add_packets` (4) and `main`'s tuple; they keep `cmd_packets` at 15. `timing.py` gains `from
+    fractions import Fraction` (1).
+  - **The numbers:** phone 155 packets (60 + 95), file order = play order; video's first dts is 1,024 ticks = 2 × 512
+    before its pts (the elst media_time), while the packets need a reorder depth of only 1 (decode I0 P3 B1 B2, shown I0
+    B1 B2 P3); the SPS says `max_num_reorder_frames` 2 and ffprobe `has_b_frames` 2. f2: depth 1, 33 ticks = 1 × 33,
+    SPS 1, `has_b_frames` 1. Sound: pts = dts, depth 0, the first packet at −1,024 (the priming frame, ep22).
+  - **Where play order is not file order:** subs (the empty 0.9 s subtitle sample is written after the video at 1.0 s:
+    file 83rd, play 76th) and phone-chapters (the two chapter samples written first, at 48 and 65: play 6th and 83rd).
+    ffprobe hands both out in file order: ffmpeg's mov reader takes the lowest pos while the streams' next dts lie
+    within 1 s of each other, and the lowest dts beyond that (`mov_find_next_sample`, `interleaved_read` on).
+  - **Not done here:** empty edits (as ep24); ffprobe's packets for subs (158: its last, empty subtitle sample is not a
+    packet) and phone-chapters (no chapter packets) are not this list; broken-stco's first packet is a keyframe to
+    mp4kit (stss) and not to ffprobe (its parser reads the wrong bytes). The reader's 1 s rule is not modelled.
+  - **Blocks the Build-it scene shows:** `packets` (one dict per sample, sorted by pos); `play_order` (one sort);
+    `reorder_depth`; `cmd_packets`.
+  - **On-screen trim:** show `_print_packets`, `_print_streams`, `_add_packets` and the import as finished code; type
+    the rest (about 35 lines).
 - ep01–ep03 are 6–10 lines over their estimates.
