@@ -1,0 +1,7 @@
+track 1 encv (avc1): cenc 1.0, KID 0123456789abcdef0123456789abcdef, 60 samples, 60 senc entries, IVs of 8 bytes
+sample 1: 5824 bytes at 48, IV 0000000000000000: clear 0+5, protected 5+683, clear 688+5, protected 693+5131
+clear 305 bytes in 61 runs: 305 the same; protected 84044 bytes in 61 runs: 61 runs differ, 83728 bytes differ (99.62%)
+track 2 enca (mp4a): cenc 1.0, KID 0123456789abcdef0123456789abcdef, 95 samples, 95 senc entries, IVs of 8 bytes
+sample 1: 238 bytes at 8011, IV 0000000000000000: protected 0+238
+clear 0 bytes in 0 runs: 0 the same; protected 24347 bytes in 95 runs: 95 runs differ, 24259 bytes differ (99.64%)
+clear bytes the same, protected runs all different: yes

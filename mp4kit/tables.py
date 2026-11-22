@@ -10,7 +10,9 @@ roll slip, a sample group: its entries (sgpd) and the runs of samples it covers 
 corridor read whole (Track, read_tracks), and the signposts between corridors (read_tref). Episode 24: the
 basement aisle, every track's chunks in file order (Sample.chunk, chunk_list). Episode 29: Track.payloads. Episode 33:
 new sheets in the same tray, HEVC's hvcC (read_hvcc) and AV1's av1C (read_av1c). Episode 34: the paint chart pinned
-beside the sheet, colr, mdcv and clli (read_colr, read_mdcv, read_clli), and the visitors' book (read_ilst)."""
+beside the sheet, colr, mdcv and clli (read_colr, read_mdcv, read_clli), and the visitors' book (read_ilst). Episode
+35: the locked parcels, the lock on a sheet (read_sinf), its key tag (read_tenc), the lock log (read_senc) with its
+index (read_saiz, read_saio), the DRM notes (read_pssh), and which bytes of a sample are locked (clear_ranges)."""
 import struct
 from dataclasses import dataclass, field
 
@@ -147,7 +149,7 @@ def read_visual_entry(data, box):
             "depth": boxes.u16(data, at + 74)}
 
 
-boxes.DECODERS["avc1"] = read_visual_entry
+boxes.DECODERS["avc1"] = boxes.DECODERS["encv"] = read_visual_entry
 
 
 def read_audio_entry(data, box):
@@ -557,3 +559,111 @@ def chunk_list(tracks):
         for s in track.samples:
             chunks.setdefault((n, s.chunk), [s.offset, n, s.number, 0])[3] += 1
     return sorted(tuple(c) for c in chunks.values())
+
+
+def read_tenc(data, box):
+    """The key tag (tenc, in sinf/schi; ISO/IEC 23001-7, read as ffmpeg's mov_read_tenc does): whether the track's
+    samples are locked by default (default_isProtected), how many bytes each sample's IV takes in senc
+    (default_Per_Sample_IV_Size: 0, 8 or 16), and the key's name, a 16-byte KID: never the key itself. Version 1 adds
+    a pattern (crypt and skip blocks, for cens and cbcs); a locked track with IV size 0 keeps one constant IV here."""
+    if box.size < 32:
+        raise boxes.BoxError(f"tenc at {box.start}: needs 32 bytes, box has {box.size}")
+    version, _ = boxes.read_fullbox(data, box)
+    at = box.payload + 4
+    fields = {"version": version, "default_isProtected": data[at + 2], "default_Per_Sample_IV_Size": data[at + 3],
+              "default_KID": bytes(data[at + 4:at + 20])}
+    if version > 0:
+        fields.update(default_crypt_byte_block=data[at + 1] >> 4, default_skip_byte_block=data[at + 1] & 15)
+    if fields["default_isProtected"] and not fields["default_Per_Sample_IV_Size"]:
+        fields["default_constant_IV"] = bytes(data[at + 21:at + 21 + data[at + 20]])
+    return fields
+
+
+def read_sinf(data, box):
+    """The lock on a sheet (sinf, ISO 14496-12 8.12): the sheet's own name under the locked one (frma: avc1 under
+    encv, mp4a under enca), the kind of lock and its version (schm: scheme_type cenc, cbcs, ...; 0x00010000 is 1.0),
+    and the key tag's fields from schi/tenc (read_tenc)."""
+    frma, schm, tenc = (boxes.find(box.children, path) for path in ("frma", "schm", "schi/tenc"))
+    if frma is None:
+        raise boxes.BoxError(f"sinf at {box.start}: no frma, so the sheet's own name is missing")
+    fields = {"original_format": data[frma.payload:frma.payload + 4].decode("latin-1")}
+    if schm:
+        fields.update(scheme_type=data[schm.payload + 4:schm.payload + 8].decode("latin-1"),
+                      scheme_version=boxes.u32(data, schm.payload + 8))
+    if tenc:
+        fields.update((k, v) for k, v in read_tenc(data, tenc).items() if k.startswith("default_"))
+    return fields
+
+
+def read_senc(data, box, iv_size):
+    """The lock log (senc, ISO/IEC 23001-7, read as ffmpeg's mov_read_senc does): for each sample in order, its IV
+    (iv_size bytes: tenc's default_Per_Sample_IV_Size) and, when flag 0x2 is set, its subsamples: a 16-bit count,
+    then (BytesOfClearData, 16 bits; BytesOfProtectedData, 32 bits), the clear bytes first. ffmpeg writes it in stbl."""
+    _, flags = boxes.read_fullbox(data, box)
+    at, entries = box.payload + 8, []
+    for _ in range(boxes.u32(data, box.payload + 4)):
+        iv, subsamples = bytes(data[at:at + iv_size]), []
+        at += iv_size
+        if flags & 2:
+            count = boxes.u16(data, at)
+            subsamples = [struct.unpack_from(">HI", data, at + 2 + 6 * i) for i in range(count)]
+            at += 2 + 6 * count
+        entries.append({"IV": iv, "subsamples": subsamples})
+    if at > box.end:
+        raise boxes.BoxError(f"senc at {box.start}: its entries need {at - box.start} bytes, box has {box.size}")
+    return entries
+
+
+def _aux_type(data, box):
+    """Where saiz's and saio's fields start: after version and flags, and after aux_info_type and its parameter
+    (8 bytes) when flag 1 is set; without them, the type is the scheme's (cenc)."""
+    return box.payload + (12 if boxes.read_fullbox(data, box)[1] & 1 else 4)
+
+
+def read_saiz(data, box):
+    """The lock log's sizes (saiz, ISO 14496-12 8.7.8): one size for every sample (default_sample_info_size), or, when
+    that is 0, a byte per sample: here, each sample's senc entry (IV, then the subsample count and 6 bytes a pair)."""
+    at = _aux_type(data, box)
+    default, count = data[at], boxes.u32(data, at + 1)
+    return {"default_sample_info_size": default, "sample_count": count,
+            "sample_info_size": [] if default else list(data[at + 5:at + 5 + count])}
+
+
+def read_saio(data, box):
+    """The lock log's address (saio, ISO 14496-12 8.7.9): where the sample information starts, like a chunk offset
+    (32 bits, or 64 in version 1). ffmpeg writes one: senc's first entry."""
+    at, width = _aux_type(data, box), 8 if boxes.read_fullbox(data, box)[0] == 1 else 4
+    return {"offsets": [int.from_bytes(data[at + 4 + width * i:at + 4 + width * (i + 1)], "big")
+                        for i in range(boxes.u32(data, at))]}
+
+
+def read_pssh(data, box):
+    """A note for one DRM system (pssh, ISO/IEC 23001-7): its 16-byte SystemID, in version 1 the KIDs it covers, and
+    the system's own data (a licence request's makings). Where the key comes from; still not the key."""
+    version, _ = boxes.read_fullbox(data, box)
+    at, kids = box.payload + 20, []
+    if version > 0:
+        count = boxes.u32(data, at)
+        kids = [bytes(data[at + 4 + 16 * i:at + 20 + 16 * i]) for i in range(count)]
+        at += 4 + 16 * count
+    return {"version": version, "SystemID": bytes(data[box.payload + 4:box.payload + 20]), "KIDs": kids,
+            "data": bytes(data[at + 4:at + 4 + boxes.u32(data, at)])}
+
+
+boxes.DECODERS.update(sinf=read_sinf, tenc=read_tenc, saiz=read_saiz, saio=read_saio, pssh=read_pssh,
+                      senc=lambda data, box: {"flags": boxes.read_fullbox(data, box)[1],
+                                              "sample_count": boxes.u32(data, box.payload + 4)})
+
+
+def clear_ranges(sample, entry):
+    """Which bytes of a locked parcel are still readable: (start in the sample, length, protected) for each run, from
+    the sample's senc entry. Each subsample is a clear run, then a protected run (ffmpeg's H.264: each NAL's length and
+    its 1-byte header clear, the rest protected); with no subsamples the whole sample is protected. The runs must
+    cover the sample exactly, as ffmpeg's decrypter demands; empty runs are left out."""
+    pairs, ranges, at = entry["subsamples"] or [(0, sample.size)], [], 0
+    for clear, protected in pairs:
+        ranges += [(at, clear, False), (at + clear, protected, True)]
+        at += clear + protected
+    if at != sample.size:
+        raise boxes.BoxError(f"sample {sample.number}: its subsamples cover {at} bytes of {sample.size}")
+    return [r for r in ranges if r[1]]

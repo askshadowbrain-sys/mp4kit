@@ -46,6 +46,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep32 | cli.py +65/-1, frag.py +87/-2 | 99 | ~49 | `cli._print_terrace` 15 (20), at the limit, `cli.cmd_frag` 14 (19), `frag.cut` 12 (16), `frag.write_traf` 7 (11), `frag.write_fragment` 7 (11) (its inner `moof` 5 (6)), `cli._seconds` 7 (9), `frag.write_init` 6 (11), `frag.fragment` 6 (9), `frag.hls_playlist` 6 (12), `cli._add_frag` 5 (7); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
 | ep33 | boxes.py +2/-2, cli.py +69/-4, nal.py +49/-1, tables.py +54/-1 | 113 | ~38 | `cli.cmd_nals` 14 (17), `nal.iter_obus` 12 (16), `cli._sample_units` 12 (15), `cli._nal_lines` 10 (13), `cli._unit_lines` 9 (13), `tables._hvcc_profile` 8 (11), `tables.read_hvcc` 8 (13), `tables.read_av1c` 8 (13), `nal.leb128` 7 (10), `cli._add_nals` 7 (9), `cli._pick` 6 (8), `nal.hevc_nal_header` 3 (6), `tables._hvcc_fields` 2 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
 | ep34 | tables.py +57/-1 | 34 | ~13 | `tables.read_colr` 12 (16), `tables.read_ilst` 8 (12), `tables.read_mdcv` 5 (9), `tables.read_clli` 4 (7); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
+| ep35 | cli.py +86/-1, tables.py +112/-2 | 129 | ~42 | `tables.read_senc` 13 (17), `cli._check_locks` 12 (16), `tables.read_tenc` 11 (16), `cli.cmd_cenc_check` 11 (16), `tables.read_sinf` 10 (14), `cli._check_files` 9 (12), `tables.read_pssh` 8 (11), `cli._print_lock` 8 (11), `cli._compare_runs` 8 (11), `tables.clear_ranges` 7 (12), `tables.read_saiz` 4 (7), `tables.read_saio` 3 (6), `tables._aux_type` 1 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
 
 ## Functions over 15 lines
 
@@ -867,4 +868,37 @@ arithmetic became `picture_size`, so its body is 12 lines.
   - **Blocks the Build-it scene shows:** the plan's three and `read_ilst`.
   - **On-screen trim:** show `read_colr`'s nclc and ICC branches and the length checks as finished code; type the
     nclx path, `read_mdcv`, `read_clli` and `read_ilst` (about 25 lines).
+- **ep35 (129, plan ~42).** The plan's five come to 57 code lines with their `def` lines (`tables.read_sinf` 11,
+  `read_tenc` 12, `read_senc` 14, `clear_ranges` 8, `cli.cmd_cenc_check` 12). The rest: the lock log's index and the
+  DRM notes, `tables.read_saiz` 5, `read_saio` 4, `read_pssh` 9 and `_aux_type` 2 (20: the brief asked for saiz, saio
+  and pssh too; cenc.mp4 has no pssh, so it is tested in memory on the W3C's 68-byte example); cenc-check's helpers,
+  `_check_files` 10, `_check_locks` 13, `_print_lock` 9, `_compare_runs` 9 and `_add_cenc_check` 5 (46: split so no body
+  passes 15); the `DECODERS` lines 3; `encv` registered as a visual entry 1; `main`'s tuple 2. Signatures as the plan's:
+  `read_sinf(data, box)` and `read_tenc(data, box)` give dicts (sinf's carries frma's `original_format`, schm's
+  `scheme_type`/`scheme_version` and tenc's `default_*` fields, so a Track's entry holds the whole lock);
+  `read_senc(data, box, iv_size)` gives `[{"IV": bytes, "subsamples": [(clear, protected), ...]}]` (the IV size is
+  tenc's, so `dump` shows senc's flags and sample_count only); `clear_ranges(sample, entry)` gives
+  `[(start in the sample, length, protected)]`, empty runs left out, and raises `BoxError` unless the runs cover the
+  sample exactly (ffmpeg's `cenc_scheme_decrypt` refuses both ways). mp4kit has no AES: cenc-check proves the
+  structure, ffmpeg `-decryption_key` the unlocking.
+  - **The numbers:** cenc.mp4 (114,208 B) is phone.mp4 with the same ftyp, free and mdat header (48 bytes) and a moov
+    of 5,464 for 3,412. encv 109,169 (still 640 x 360 and avcC) holds sinf 109,326 (80 = 8 + frma 12 + schm 20 + schi
+    40, tenc 109,374 (32)); enca 111,778 holds sinf 111,868. frma avc1 / mp4a (what ffprobe calls the streams), schm
+    cenc 0x00010000, tenc version 0, isProtected 1, IV size 8, KID 0123456789abcdef0123456789abcdef. The KID is in the
+    file twice (the two tencs); the key not at all; no pssh. senc 110,394 (982, flags 2): 60 entries, IVs 0 to 59 as 8
+    bytes (+bitexact), sample 1 [(5, 683), (5, 5131)] = 5,824, the others one NAL each; 61 subsamples, each (4-byte
+    length + 1-byte header, the NAL's rest). senc 113,280 (776 = 16 + 95 x 8, flags 0): 95 IVs, no subsamples, so
+    every sound sample is protected whole. saio 110,410 and 113,296 = each senc's payload + 8 (its first entry); saiz
+    22, 16, 16, ... (8 + 2 + 6 per subsample) and a default 8. `cenc-check cenc.mp4 phone.mp4`: clear 305 bytes in 61
+    runs, all 305 the same; protected 84,044 bytes in 61 runs, all 61 differ, 83,728 bytes (99.62%); sound 24,347 in
+    95 runs, all differ, 24,259 bytes (99.64%): expected/ep35.txt, 7 lines.
+  - **Not done here:** decrypting (no AES in the stdlib), senc in a fragment's traf (ffmpeg writes it there when
+    fragmenting; no committed file has one, and ep32's `frag` drops the locks), senc's flag 1 (PIFF's per-file override:
+    ffmpeg reads only flag 2), a constant IV or a pattern on a real file (cbcs, cens: ffmpeg writes only cenc), sample
+    groups that change the key (`seig`), more than one sample entry, isProtected 0 in tenc, saiz/saio pointing outside
+    senc.
+  - **Blocks the Build-it scene shows:** the plan's five and `_compare_runs`.
+  - **On-screen trim:** show `read_saiz`, `read_saio`, `read_pssh`, `_aux_type`, `_check_files`, `_print_lock`,
+    `_add_cenc_check` and the DECODERS lines as finished code; type `read_sinf`, `read_tenc`'s version-0 path,
+    `read_senc`, `clear_ranges`, `cmd_cenc_check`, `_check_locks` and `_compare_runs` (about 75 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

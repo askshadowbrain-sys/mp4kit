@@ -900,6 +900,82 @@ def _seconds(data, moof, video):
     return sum(durations) / video.timescale
 
 
+def cmd_cenc_check(args):
+    """`cenc-check LOCKED CLEAR`: the locked parcels beside the same parcels unlocked (episode 35). For each locked
+    track: its lock (sinf: the original format, the scheme, the KID; never the key), sample 1's runs, then every
+    sample's runs (tables.clear_ranges from senc) against the clear file's bytes. The clear runs must be the same
+    bytes, and each protected run must differ. mp4kit has no AES: the unlocking itself is ffmpeg's -decryption_key."""
+    from . import boxes
+    data, clear = boxes.read_mp4(args.file), boxes.read_mp4(args.clear)
+    try:
+        ok = _check_files(data, clear)
+    except boxes.BoxError as e:
+        ok = f"error: {e}"
+    if isinstance(ok, str):
+        print(ok)
+        return 1
+    print(f"clear bytes the same, protected runs all different: {'yes' if ok else 'no'}")
+    return 0 if ok else 1
+
+
+def _check_files(data, clear):
+    """Every track of the locked file against the same track of the clear one (_check_locks): True if all pass; the
+    error line if the two do not hold the same samples (as many, each the same size)."""
+    from . import boxes, tables
+    tree = boxes.walk(data)
+    tracks, twins = tables.read_tracks(data, tree), tables.read_tracks(clear, boxes.walk(clear))
+    sizes = [[[s.size for s in t.samples] for t in ts] for ts in (tracks, twins)]
+    if not tracks or sizes[0] != sizes[1]:
+        return (f"error: not the same samples: the locked file has {[len(t) for t in sizes[0]]}, the clear one "
+                f"{[len(t) for t in sizes[1]]}, or their sizes differ")
+    return all([_check_locks(data, clear, n, track, trak, twin)
+                for n, (track, trak, twin) in enumerate(zip(tracks, boxes.find_all(tree, "moov/trak"), twins), 1)])
+
+
+def _check_locks(data, clear, n, track, trak, twin):
+    """One track's lines for cenc-check: its lock and sample 1's runs (_print_lock), then the clear and protected
+    totals (_compare_runs); True if every clear byte matches the clear file and no protected run does. A track with
+    no lock must match whole."""
+    from . import boxes, tables
+    lock, senc = track.entry.get("sinf"), boxes.find(trak.children, "mdia/minf/stbl/senc")
+    if lock is None or senc is None:
+        print(f"track {n} {track.entry['type']}: not locked (no sinf or no senc)")
+        return all(data[s.offset:s.offset + s.size] == clear[t.offset:t.offset + t.size]
+                   for s, t in zip(track.samples, twin.samples))
+    log = tables.read_senc(data, senc, lock["default_Per_Sample_IV_Size"])
+    _print_lock(data, n, track, lock, log)
+    (cb, cr, csame, _), (pb, pr, psame, pruns) = _compare_runs(data, clear, track, twin, log)
+    print(f"clear {cb} bytes in {cr} runs: {csame} the same; protected {pb} bytes in {pr} runs: {pr - pruns} runs "
+          f"differ, {pb - psame} bytes differ ({100 * (pb - psame) / max(pb, 1):.2f}%)")
+    return len(log) == len(track.samples) and csame == cb and pruns == 0
+
+
+def _print_lock(data, n, track, lock, log):
+    """The track's lock in one line (the sheet's own name, scheme and version, KID, how many samples and senc
+    entries, the IV size), then sample 1: its size, offset, IV and runs, as start+length."""
+    from . import tables
+    version = lock.get("scheme_version", 0)
+    print(f"track {n} {track.entry['type']} ({lock['original_format']}): {lock.get('scheme_type')} "
+          f"{version >> 16}.{version & 0xFFFF}, KID {lock['default_KID'].hex()}, {len(track.samples)} samples, "
+          f"{len(log)} senc entries, IVs of {lock['default_Per_Sample_IV_Size']} bytes")
+    first = track.samples[0]
+    print(f"sample 1: {first.size} bytes at {first.offset}, IV {log[0]['IV'].hex()}: " + ", ".join(
+        f"{'protected' if locked else 'clear'} {at}+{size}" for at, size, locked in tables.clear_ranges(first, log[0])))
+
+
+def _compare_runs(data, clear, track, twin, log):
+    """Every sample's runs against the same bytes of the clear file: for the clear runs, then for the protected ones,
+    [bytes, runs, bytes the same, runs the same]."""
+    from . import tables
+    runs = {False: [0, 0, 0, 0], True: [0, 0, 0, 0]}
+    for s, t, entry in zip(track.samples, twin.samples, log):
+        for at, size, locked in tables.clear_ranges(s, entry):
+            same = sum(x == y for x, y in zip(data[s.offset + at:s.offset + at + size],
+                                              clear[t.offset + at:t.offset + at + size]))
+            runs[locked] = [total + v for total, v in zip(runs[locked], (size, 1, same, same == size))]
+    return runs[False], runs[True]
+
+
 def _show(value):
     """A field as dump prints it: bytes as hex digits (in a list too), anything else as Python prints it."""
     if isinstance(value, list):
@@ -1049,6 +1125,14 @@ def _add_frag(sub):
     f.set_defaults(func=cmd_frag)
 
 
+def _add_cenc_check(sub):
+    """Register the `cenc-check` command."""
+    c = sub.add_parser("cenc-check", help="show which bytes of each encrypted sample are protected, against the clear file")
+    c.add_argument("file", help="the encrypted MP4 (encv/enca with sinf, senc)")
+    c.add_argument("clear", help="the same file unencrypted")
+    c.set_defaults(func=cmd_cenc_check)
+
+
 def _add_packets(sub):
     """Register the `packets` command."""
     c = sub.add_parser("packets", help="list every packet in the order a player decodes them")
@@ -1061,7 +1145,8 @@ def main(argv: Optional[list] = None) -> int:
     p = argparse.ArgumentParser(prog="mp4kit")
     sub = p.add_subparsers(dest="cmd", required=True)
     for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes, _add_dump, _add_samples,
-                _add_frame, _add_extract, _add_chunks, _add_packets, _add_faststart, _add_mux, _add_frag):
+                _add_frame, _add_extract, _add_chunks, _add_packets, _add_faststart, _add_mux, _add_frag,
+                _add_cenc_check):
         add(sub)
     args = p.parse_args(argv)
     return args.func(args)
