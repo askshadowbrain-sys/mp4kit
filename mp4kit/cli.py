@@ -20,8 +20,14 @@ def cmd_hex(args):
 
 
 def cmd_nals(args):
-    """`nals FILE --from N --to N`: list the length-prefixed NAL units in that byte range."""
+    """`nals FILE --from N --to N`: list the length-prefixed NAL units in that byte range. Episode 33: `nals FILE
+    [--track N] --sample N` finds the sample through the tables instead (_sample_units)."""
     from . import nal
+    if args.sample is not None:
+        return _sample_units(args)
+    if args.start is None or args.end is None:
+        print("error: give --from and --to, or --sample")
+        return 1
     with open(args.file, "rb") as f:
         contents = f.read()
     units = nal.iter_length_prefixed(contents, args.start, args.end)
@@ -30,6 +36,63 @@ def cmd_nals(args):
         name = nal.NAL_TYPES.get(unit_type, "?")
         print(index, offset, len(unit), unit_type, name)
     return 0
+
+
+def _sample_units(args):
+    """`nals FILE [--track N] --sample N`: the sample's size, offset and first bytes, then its units, cut the way its
+    sample entry says (_unit_lines)."""
+    from . import boxes, tables
+    data = boxes.read_mp4(args.file)
+    found = _pick(tables.read_tracks(data, boxes.walk(data)), args.track, args.sample)
+    if isinstance(found, str):
+        print(found)
+        return 1
+    track, s = found
+    print(f"track {args.track} ({track.entry['type']}) sample {s.number}: {s.size} bytes at {s.offset}, "
+          f"first bytes {data[s.offset:s.offset + min(8, s.size)].hex(' ')}")
+    for line in _unit_lines(data, track.entry, s.offset, s.offset + s.size):
+        print(line)
+    return 0
+
+
+def _pick(tracks, n, number):
+    """(track, sample) for track `n` and sample `number`, both counted from 1; or the error line if there is none."""
+    if not 1 <= n <= len(tracks):
+        return f"error: no track {n}, the file has {len(tracks)}"
+    track = tracks[n - 1]
+    if not 1 <= number <= len(track.samples):
+        return f"error: no sample {number}, track {n} has {len(track.samples)}"
+    return track, track.samples[number - 1]
+
+
+def _unit_lines(data, entry, start, end):
+    """One line per unit of a sample (index, offset, size, type, name, ...), by sample entry: AV1 (av01) is OBUs, each
+    with its own LEB128 size; H.264 (avc1) and HEVC (hvc1, hev1) are NAL units behind lengths of the size their sheet
+    gives (_nal_lines); anything else is not cut."""
+    from . import nal
+    kind = entry["type"]
+    if kind == "av01":
+        return [f"{n} {at} {head + size} {t} {nal.OBU_TYPES.get(t, '?')} header {head} obu_size {size}"
+                for n, (at, t, head, size) in enumerate(nal.iter_obus(data, start, end), 1)]
+    sheet = entry.get("hvcC") or entry.get("avcC")
+    if kind not in ("avc1", "hvc1", "hev1") or sheet is None:
+        return [f"{kind}: not NAL units or OBUs"]
+    return _nal_lines(data, kind == "avc1", start, end, sheet["lengthSizeMinusOne"] + 1)
+
+
+def _nal_lines(data, h264, start, end, length_size):
+    """The NAL units of data[start:end] as `nals` prints them: H.264's 1-byte header gives the type (episode 3);
+    HEVC's 2-byte header gives the type, the layer and the temporal id."""
+    from . import nal
+    lines = []
+    for n, (at, unit) in enumerate(nal.iter_length_prefixed(data, start, end, length_size), 1):
+        if h264:
+            t = nal.nal_header(unit[0])[2]
+            lines.append(f"{n} {at} {len(unit)} {t} {nal.NAL_TYPES.get(t, '?')}")
+        else:
+            t, layer, tid = nal.hevc_nal_header(unit[0], unit[1])
+            lines.append(f"{n} {at} {len(unit)} {t} {nal.HEVC_NAL_TYPES.get(t, '?')} layer {layer} tid {tid}")
+    return lines
 
 
 def cmd_sps(args):
@@ -878,10 +941,12 @@ def _add_hex(sub):
 
 def _add_nals(sub):
     """Register the `nals` command."""
-    n = sub.add_parser("nals", help="list length-prefixed NAL units in a byte range")
+    n = sub.add_parser("nals", help="list the NAL units (or AV1 OBUs) in a byte range or a sample")
     n.add_argument("file", help="the MP4 file to read")
-    n.add_argument("--from", dest="start", type=int, required=True, help="byte offset where the units start")
-    n.add_argument("--to", dest="end", type=int, required=True, help="byte offset where the units end")
+    n.add_argument("--from", dest="start", type=int, help="byte offset where the units start")
+    n.add_argument("--to", dest="end", type=int, help="byte offset where the units end")
+    n.add_argument("--track", type=int, default=1, help="with --sample: which track, from 1 in file order (default 1)")
+    n.add_argument("--sample", type=int, help="list this sample's units, found through the tables (from 1)")
     n.set_defaults(func=cmd_nals)
 
 

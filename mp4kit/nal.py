@@ -2,7 +2,9 @@
 Episode 4: SPS, PPS, picture size, slice headers.
 Episode 5: Annex B start codes, AVCC length labels, emulation prevention (rbsp).
 Episode 17: access units (one picture's NAL units), and the slice header's picture order count.
-Episode 23: one sample in Annex B the way ffmpeg's h264_mp4toannexb writes it (annexb_sample)."""
+Episode 23: one sample in Annex B the way ffmpeg's h264_mp4toannexb writes it (annexb_sample).
+Episode 33: HEVC's two-byte NAL header (hevc_nal_header), and AV1's OBUs, each sized by its own LEB128 number
+(leb128, iter_obus)."""
 
 
 def iter_length_prefixed(data, start, end, length_size=4):
@@ -18,6 +20,52 @@ def iter_length_prefixed(data, start, end, length_size=4):
 
 
 NAL_TYPES = {1: "non-IDR slice", 5: "IDR slice", 6: "SEI", 7: "SPS", 8: "PPS", 9: "AUD"}
+
+
+HEVC_NAL_TYPES = {0: "TRAIL_N", 1: "TRAIL_R", 19: "IDR_W_RADL", 20: "IDR_N_LP", 21: "CRA_NUT", 32: "VPS", 33: "SPS",
+                  34: "PPS", 35: "AUD", 39: "prefix SEI", 40: "suffix SEI"}
+
+
+def hevc_nal_header(b0, b1):
+    """HEVC's NAL header is two bytes (H.265 7.3.1.2): forbidden_zero_bit (1), nal_unit_type (6), nuh_layer_id (6),
+    nuh_temporal_id_plus1 (3). Gives (nal_unit_type, nuh_layer_id, TemporalId); 40 01 is (32, 0, 0), a VPS."""
+    nal_unit_type = (b0 >> 1) & 0x3F
+    nuh_layer_id = (b0 & 1) << 5 | b1 >> 3
+    return nal_unit_type, nuh_layer_id, (b1 & 7) - 1
+
+
+OBU_TYPES = {1: "OBU_SEQUENCE_HEADER", 2: "OBU_TEMPORAL_DELIMITER", 3: "OBU_FRAME_HEADER", 4: "OBU_TILE_GROUP",
+             5: "OBU_METADATA", 6: "OBU_FRAME", 7: "OBU_REDUNDANT_FRAME_HEADER", 8: "OBU_TILE_LIST", 15: "OBU_PADDING"}
+
+
+def leb128(data, at):
+    """AV1's size field (LEB128): 7 bits a byte, the lowest seven first; a byte's top bit says another byte follows,
+    8 bytes at most. Gives (value, offset after it): f0 17 is 0x70 + (0x17 << 7) = 3,056."""
+    value = 0
+    for i in range(8):
+        byte = data[at + i]
+        value |= (byte & 0x7F) << (7 * i)
+        if byte < 0x80:
+            return value, at + i + 1
+    raise ValueError(f"leb128 at {at}: more than 8 bytes")
+
+
+def iter_obus(data, start, end):
+    """Yield (offset, obu_type, header size, obu_size) for each OBU in data[start:end]. An OBU starts with a header
+    byte: forbidden bit, obu_type (4), obu_extension_flag, obu_has_size_field, a reserved bit; one more byte if the
+    extension flag is set; then obu_size, the payload's length, as LEB128. No size field: it runs to `end`."""
+    at = start
+    while at < end:
+        header = data[at]
+        obu_type, payload = (header >> 3) & 15, at + 1 + (header >> 2 & 1)
+        if header & 2:
+            obu_size, payload = leb128(data, payload)
+        else:
+            obu_size = end - payload
+        if payload + obu_size > end:
+            raise ValueError(f"OBU at {at}: obu_size {obu_size} runs past {end}")
+        yield at, obu_type, payload - at, obu_size
+        at = payload + obu_size
 
 
 def nal_header(first_byte):

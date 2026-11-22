@@ -51,7 +51,8 @@ class Ep13(unittest.TestCase):
                     self.assertEqual(len(entries), 1)
                     kinds.add(entries[0].type)
         self.assertEqual(kinds, {"avc1", "encv", "hvc1", "hev1", "av01", "mp4a", "enca", "tx3g",
-                                 "text"})                     # text: phone-chapters.mp4's chapter track (ep23)
+                                 "text", "vp09", "Opus"})     # text: phone-chapters.mp4's chapter track (ep23);
+                                                              # vp09, Opus: vp9opus.mp4 (ep33)
 
     def test_read_stsd_count_mismatch(self):
         blob = bytearray(PHONE[109153:109153 + 193])

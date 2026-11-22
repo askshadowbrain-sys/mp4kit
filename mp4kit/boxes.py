@@ -110,8 +110,8 @@ def decode(data, box):
 
 CONTAINERS = {"moov", "trak", "mdia", "minf", "stbl", "dinf", "edts", "udta", "mvex", "moof", "traf", "mfra",
               "sinf", "schi", "tref"}
-CHILD_OFFSET = {"stsd": 8, "dref": 8, "meta": 4, "avc1": 78, "hvc1": 78, "hev1": 78, "av01": 78, "encv": 78,
-                "mp4a": 28, "enca": 28}
+CHILD_OFFSET = {"stsd": 8, "dref": 8, "meta": 4, "avc1": 78, "hvc1": 78, "hev1": 78, "av01": 78, "vp09": 78, "encv": 78,
+                "mp4a": 28, "Opus": 28, "enca": 28}
 
 
 def walk(data, start=0, end=None):

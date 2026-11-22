@@ -44,6 +44,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep30 | cli.py +42/-1, frag.py +100 (new) | 92 | ~34 | `frag.traf_samples` 13 (19), `cli._print_fragments` 12 (15), `frag.read_trun` 11 (15), `cli._traf_line` 7 (10), `frag.read_tfhd` 7 (10), `cli._source` 6 (8), `frag.read_trex` 2 (5), `frag.read_tfdt` 2 (5), `frag.in_hex` 2 (4), `frag.column` 1 (3); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
 | ep31 | cli.py +94/-17, frag.py +86/-1 | 116 | ~35 | `cli.cmd_samples` 15 (22), at the limit, `frag.read_sidx` 14 (19), `cli._print_lookup` 12 (15), `frag.read_tfra` 11 (15), `frag.fragment_samples` 10 (13), `frag.back_gate` 8 (11), `cli._source` 7 (10), `cli._track_samples` 6 (9), `cli._print_tfra` 6 (9), `cli._print_samples` 5 (7), `cli._print_sidx` 5 (8), `cli._from_runs` 4 (7), `frag.read_mfro` 1 (3), `frag.fragment_at` 1 (4), `cli._in_fragments` 1 (3); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
 | ep32 | cli.py +65/-1, frag.py +87/-2 | 99 | ~49 | `cli._print_terrace` 15 (20), at the limit, `cli.cmd_frag` 14 (19), `frag.cut` 12 (16), `frag.write_traf` 7 (11), `frag.write_fragment` 7 (11) (its inner `moof` 5 (6)), `cli._seconds` 7 (9), `frag.write_init` 6 (11), `frag.fragment` 6 (9), `frag.hls_playlist` 6 (12), `cli._add_frag` 5 (7); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
+| ep33 | boxes.py +2/-2, cli.py +69/-4, nal.py +49/-1, tables.py +54/-1 | 113 | ~38 | `cli.cmd_nals` 14 (17), `nal.iter_obus` 12 (16), `cli._sample_units` 12 (15), `cli._nal_lines` 10 (13), `cli._unit_lines` 9 (13), `tables._hvcc_profile` 8 (11), `tables.read_hvcc` 8 (13), `tables.read_av1c` 8 (13), `nal.leb128` 7 (10), `cli._add_nals` 7 (9), `cli._pick` 6 (8), `nal.hevc_nal_header` 3 (6), `tables._hvcc_fields` 2 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
 
 ## Functions over 15 lines
 
@@ -795,11 +796,52 @@ arithmetic became `picture_size`, so its body is 12 lines.
     edits, so ffprobe's pts are phone's. moofs 1,352 / 1,432 against 608 / 828: ffmpeg puts defaults in the tfhd
     (0x02003a) and writes only the columns that vary; ours writes every column. No mfra (frag-cmaf: 148 B).
   - **Not done here:** a display matrix (rotated.mp4's 90 degrees is lost: write_tkhd writes the identity), chapter
-    tracks (phone-chapters' chap track comes out as an ordinary text track), cenc (senc/saiz/saio are not carried:
-    cenc.mp4's pieces do not decode), an edit list that ends early (the last sound frame's tail), more than one
+    tracks (phone-chapters' chap track comes out as an ordinary text track), cenc (the senc/saiz/saio/pssh boxes are
+    not carried; corrected at ep33), an edit list that ends early (the last sound frame's tail), more than one
     edit, files with no video track (aac-only.m4a is refused), pieces cut by time rather than by keyframe, separate
     segment files (styp), sidx, mfra, I-frame playlists, a master playlist, DASH's MPD.
   - **Blocks the Build-it scene shows:** the plan's five, `cut` and `write_traf`.
   - **On-screen trim:** show the flag constants, `_print_terrace`, `_seconds` and `_add_frag` as finished code; type
     the plan's five, `cut` and `write_traf` (about 65 lines).
+- **ep33 (113, plan ~38).** The plan's five come to 43 code lines with their `def` lines (`nal.hevc_nal_header` 4,
+  `leb128` 8, `iter_obus` 13, `tables.read_hvcc` 9, `read_av1c` 9), near the plan's ~38. The rest: `tables._hvcc_profile`
+  9 (hvcC's 23 fixed bytes, split out of `read_hvcc` to keep its body under 15), `_hvcc_fields` 3 (dump shows each
+  array's NAL sizes, not a 2,332-byte SEI in hex), the `DECODERS` line 1, the two name tables (`HEVC_NAL_TYPES`,
+  `OBU_TYPES`) 4, `CHILD_OFFSET` gaining `vp09` and `Opus` 2 (so dump opens the web codecs' entries: vpcC, dOps); in
+  cli.py `nals --sample` (51): `_sample_units` 13, `_pick` 7, `_unit_lines` 10, `_nal_lines` 11, `cmd_nals` +5 (the
+  `--sample` branch and the missing-range error), `_add_nals` 5 changed or new lines (`--track`, `--sample`, the
+  help line, and `--from`/`--to` no longer required). Signatures: `hevc_nal_header(b0, b1)` and `leb128(data, at)` as written, giving (nal_unit_type,
+  nuh_layer_id, TemporalId) and (value, offset after it); `iter_obus(data, start, end)` yields **four** ints, (offset,
+  obu_type, header size, obu_size), not the plan's three: the header is 1 or 2 bytes plus a 1-8 byte LEB128, so the
+  size alone does not say where the payload starts; `read_hvcc(data, box)` gives the 14496-15 fields plus `arrays` =
+  [(array_completeness, NAL_unit_type, [NAL bytes])]; `read_av1c(data, box)` gives the fields plus `configOBUs` (bytes).
+  - **The numbers:** hevc-hev1.mp4 sample 1 (4,941 B at 44): NAL types 32, 33, 34, 39, 20, sizes 24, 43, 7, 2,329,
+    2,518, each layer 0, TemporalId 0 (5 × 4 + 4,921 = 4,941); hevc.mp4 sample 1 (2,522 B): one IDR_N_LP (20), 2,518.
+    Sample 28 of both is a CRA (21; hev1: behind 32, 33, 34, 39), and 29-31 are RASL (9, 8, 8): x265's default
+    open-gop. hvcC (hevc.mp4, 2,457 B): configurationVersion 1, profile_space 0, tier 0, general_profile_idc 1 (Main),
+    compatibility 60000000, constraints 900000000000, general_level_idc 60 (level 2), chromaFormat 1, bit depths 8/8,
+    numTemporalLayers 1, temporalIdNested 1, lengthSizeMinusOne 3, 4 arrays (1, 32, [24]), (1, 33, [43]), (1, 34, [7]),
+    (0, 39, [2,332]); hevc-hev1's (2,454 B) has array_completeness 0 on all four and a 2,329-byte SEI (x265's settings
+    text says repeat-headers), and its VPS/SPS/PPS bytes are hevc.mp4's and its own sample 1's. hdr.mp4: profile 2
+    (Main 10), bit depths 10/10, SEI array [9, 30, 2,442]. av1C (av1.mp4, 25 B): 81 00 0c 00 = version 1, seq_profile
+    0, seq_level_idx_0 0, tier 0, 8-bit, 4:2:0 (subsampling 1, 1, position 0), no initial delay; configOBUs one
+    sequence header, `0a 0b` = type 1 with a size field, obu_size 11. av1.mp4 sample 1 (3,072 B at 48):
+    OBU_SEQUENCE_HEADER (2 + 11), OBU_FRAME (3 + 3,056; size bytes f0 17); 60 samples hold 2 sequence headers, 60
+    OBU_FRAMEs and 28 OBU_FRAME_HEADERs (3-byte show-existing samples), every OBU with a size field, no temporal
+    delimiter. ffprobe agrees: hvc1/hev1 Main level 60, av01 Main level 0; `trace_headers` gives the same NAL types,
+    layers, temporal ids, OBU types and sizes for every sample of hevc, hevc-hev1, hdr and av1, and for the
+    sheets (run with `-v repeat+trace`: plain `trace` folds hdr.mp4's three identical SEI summary lines).
+  - **Surprise:** av1C's sequence header is not the samples' byte for byte (10 of 13 bytes equal;
+    bytes 9-11 are 60 17 c0 against 63 57 cc): `trace_headers`
+    reads enable_intra_edge_filter, enable_interintra_compound, enable_warped_motion, enable_cdef and
+    enable_restoration as 0 in av1C's copy and 1 in sample 1's. ffmpeg writes av1C from the encoder's extradata
+    (av1.c `ff_isom_write_av1c`); the AV1-ISOBMFF note that decoding from a sync sample gives "2 consecutive and
+    identical Sequence Header OBUs" does not hold for this file. ffmpeg decodes it cleanly.
+  - **Not done here:** HEVC's RFC 6381 codec string, reading the VPS/SPS themselves (picture
+    size from an HEVC SPS: trace_headers shows 320x184 coded), AV1's sequence-header fields, OBU extension headers on a
+    real file (none of ours has one), vpcC and dOps fields (the boxes are walked, not decoded), `nals --sample` on a
+    fragmented file (its moov lists 0 samples) and on encv (cenc.mp4 is not cut).
+  - **Blocks the Build-it scene shows:** the plan's five and `_hvcc_profile`.
+  - **On-screen trim:** show the name tables, `_hvcc_fields`, `_pick`, `_unit_lines`, `_nal_lines` and the argparse
+    lines as finished code; type the plan's five, `_hvcc_profile` and `_sample_units` (about 65 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

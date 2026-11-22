@@ -85,7 +85,7 @@ class Ep17(unittest.TestCase):
                     continue
                 with self.subTest(f=f.name, track=index + 1):
                     shift = samples[0].dts - packets[0]["dts"]       # ffprobe applies the edit list (episode 18)
-                    self.assertIn(shift, (0, 33, 1024))
+                    self.assertIn(shift, (0, 33, 1024, 312))     # 312: Opus pre-skip (vp9opus.mp4, ep33)
                     self.assertEqual([p["pts"] + shift for p in packets], [s.cts for s in samples[:len(packets)]])
 
     def test_poc_order_phone(self):

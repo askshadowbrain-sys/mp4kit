@@ -17,3 +17,7 @@ The files are synthetic (testsrc2 and a sine). `make.sh` stays in the NEW-B1 ser
   +frag_keyframe+empty_moov+default_base_moof+global_sidx -movie_timescale 48000`: two sidx, one per track, then two
   moof+mdat pairs and an mfra). The other 17 files and their captures rebuild byte-identically with it. The MANIFEST
   copy also brings in the streams/ paragraph NEW-B1 added for episode 29.
+- vp9opus.mp4 (`out/`, its three `captures/` files and the new MANIFEST.md) copied on 2026-11-22 from NEW-B1 commit
+  e7958211, which adds make_scratch.sh's recipe to make.sh (1 s testsrc2 320x180 in libvpx-vp9 + a 48 kHz sine in
+  libopus, +bitexact; libvpx 1.17.0, libopus 1.6.1). The other 18 files and their captures rebuild byte-identically with
+  it. The MANIFEST copy also brings in NEW-B1's correction that hevc.mp4's keyframe sample 28 is a CRA (type 21).

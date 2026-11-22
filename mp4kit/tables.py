@@ -8,7 +8,8 @@ sample's composition time, its decode time plus the slip (read_ctts). Episode 18
 corridor's entrance (read_elst). Episode 21: the sound corridor's sheet, mp4a (read_audio_entry). Episode 22: the
 roll slip, a sample group: its entries (sgpd) and the runs of samples it covers (sbgp). Episode 23: many tracks, each
 corridor read whole (Track, read_tracks), and the signposts between corridors (read_tref). Episode 24: the
-basement aisle, every track's chunks in file order (Sample.chunk, chunk_list). Episode 29: Track.payloads."""
+basement aisle, every track's chunks in file order (Sample.chunk, chunk_list). Episode 29: Track.payloads. Episode 33:
+new sheets in the same tray, HEVC's hvcC (read_hvcc) and AV1's av1C (read_av1c)."""
 import struct
 from dataclasses import dataclass, field
 
@@ -190,6 +191,58 @@ def read_avcc(data, box):
 
 
 boxes.DECODERS["avcC"] = read_avcc
+
+
+def _hvcc_profile(data, at):
+    """hvcC's 23 fixed bytes (ISO 14496-15; the bit widths as FFmpeg's hevc.c spells them out): the profile, tier and
+    level the SPS also carries, the picture format, and lengthSizeMinusOne, the low 2 bits of byte 21, as in avcC."""
+    b = data[at:at + 23]
+    return {"configurationVersion": b[0], "general_profile_space": b[1] >> 6, "general_tier_flag": b[1] >> 5 & 1,
+            "general_profile_idc": b[1] & 0x1F, "general_profile_compatibility_flags": bytes(b[2:6]),
+            "general_constraint_indicator_flags": bytes(b[6:12]), "general_level_idc": b[12],
+            "min_spatial_segmentation_idc": boxes.u16(b, 13) & 0xFFF, "parallelismType": b[15] & 3,
+            "chromaFormat": b[16] & 3, "bitDepthLumaMinus8": b[17] & 7, "bitDepthChromaMinus8": b[18] & 7,
+            "avgFrameRate": boxes.u16(b, 19), "constantFrameRate": b[21] >> 6, "numTemporalLayers": b[21] >> 3 & 7,
+            "temporalIdNested": b[21] >> 2 & 1, "lengthSizeMinusOne": b[21] & 3, "numOfArrays": b[22]}
+
+
+def read_hvcc(data, box):
+    """HEVC's instruction sheets (HEVCDecoderConfigurationRecord): the fixed fields, then numOfArrays arrays, one per
+    NAL type (VPS 32, SPS 33, PPS 34, SEI 39): array_completeness (1 = every NAL of this type is here, none in the
+    samples), a reserved bit and NAL_unit_type (6), numNalus (16), then each NAL behind a 2-byte length.
+    arrays = [(array_completeness, NAL_unit_type, [NAL bytes])]."""
+    fields, at, arrays = _hvcc_profile(data, box.payload), box.payload + 23, []
+    for _ in range(fields["numOfArrays"]):
+        nalus, after = nal._read_param_sets(data, at + 3, boxes.u16(data, at + 1))
+        arrays.append((data[at] >> 7, data[at] & 0x3F, nalus))
+        at = after
+    if at > box.end:
+        raise boxes.BoxError(f"hvcC at {box.start}: the arrays run to {at}, past the box's end ({box.end})")
+    return {**fields, "arrays": arrays}
+
+
+def _hvcc_fields(data, box):
+    """dump's hvcC: each array as (array_completeness, NAL_unit_type, [each NAL's size]), not its bytes."""
+    fields = read_hvcc(data, box)
+    return {**fields, "arrays": [(full, kind, [len(n) for n in nalus]) for full, kind, nalus in fields["arrays"]]}
+
+
+def read_av1c(data, box):
+    """AV1's instruction sheet (AV1CodecConfigurationRecord, AV1-ISOBMFF 2.3.3): marker (1) and version (7);
+    seq_profile (3) and seq_level_idx_0 (5); seq_tier_0, high_bitdepth, twelve_bit, monochrome, chroma_subsampling_x
+    and _y (1 each), chroma_sample_position (2); 3 reserved bits, initial_presentation_delay_present and its 4 bits;
+    then configOBUs, whole OBUs (a sequence header first, if any). The marker bit 1 keeps it from reading as an OBU."""
+    b0, b1, b2, b3 = data[box.payload:box.payload + 4]
+    if b0 != 0x81:
+        raise boxes.BoxError(f"av1C at {box.start}: marker and version {b0:02x}, expected 81")
+    return {"version": b0 & 0x7F, "seq_profile": b1 >> 5, "seq_level_idx_0": b1 & 31, "seq_tier_0": b2 >> 7,
+            "high_bitdepth": b2 >> 6 & 1, "twelve_bit": b2 >> 5 & 1, "monochrome": b2 >> 4 & 1,
+            "chroma_subsampling_x": b2 >> 3 & 1, "chroma_subsampling_y": b2 >> 2 & 1, "chroma_sample_position": b2 & 3,
+            "initial_presentation_delay_present": b3 >> 4 & 1, "initial_presentation_delay_minus_one": b3 & 15,
+            "configOBUs": bytes(data[box.payload + 4:box.end])}
+
+
+boxes.DECODERS["hvcC"], boxes.DECODERS["av1C"] = _hvcc_fields, read_av1c
 
 
 def read_table(data, box, fmt):
