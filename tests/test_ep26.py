@@ -8,7 +8,7 @@ OUT = Path(__file__).parents[1] / "testfiles" / "out"
 EXPECTED = Path(__file__).parents[1] / "expected" / "ep26.txt"
 # The sample tables table_box writes, each with its row format (stts, stss, stsc, stco/co64; ctts by its version).
 FORMATS = {"stts": ">II", "stss": ">I", "stsc": ">III", "stco": ">I", "co64": ">Q"}
-FILES = sorted(p.name for p in OUT.iterdir() if p.name != "broken-nomoov.mp4")
+FILES = sorted(p.name for p in OUT.iterdir() if p.name not in ("broken-nomoov.mp4", "phone.ts"))   # phone.ts: MPEG-TS
 
 
 def not_written(name, track):

@@ -18,15 +18,16 @@ also byte-identical, captures included.
   - `<file>.boxes.json` is the output of `python3 media/moov-series/kit/tools/walk.py <file> --json`, where walk.py parses the file. Where it does not, `<file>.walk-error.txt` holds its error.
 - **Trace line format:** `type:'stco' parent:'stbl' sz: <box size> <offset of the box's end of header inside the parent> <parent payload size>`.
 - **Episodes:** the "used by" column gives the episodes of `../CURRICULUM.md` that show the file (its
-  `test file` column). Besides these, the tests of episode 9 (`walk`, `dump`) and 36 (`check.problems`) run on all 20.
-  One more file is pending (`../CURRICULUM.md`, "Test files"): phone.ts.
+  `test file` column). Besides these, the tests of episode 9 (`walk`, `dump`) run on the 20 MP4 files and those of
+  episode 36 (`check.problems`) on all 21. No file is pending any more (`../CURRICULUM.md`, "Test files").
   phone-chapters.mp4 was added on 2026-11-21 for episode 23 (mp4kit tag ep23), phone-sidx.mp4 on 2026-11-22 for
   episode 31 (mp4kit tag ep31), vp9opus.mp4 on 2026-11-22 for episode 33 (mp4kit tag ep33),
-  phone-tagged.mp4 on 2026-11-22 for episode 34 (mp4kit tag ep34).
-- **Total size:** the 20 files plus their captures hold 2,636,550 bytes (about 2.51 MiB; 2,451,700 for the first 19,
-  2,375,128 for the first 18, 2,198,688 for the first 17, 2,008,381 for the first 16). On disk, `du -k` reports
-  2,736 KB: out/ 1,604 and the 63 capture files 1,132, rounded up to 4 KB blocks (measured 2026-11-22; the per-episode `captures/epNN/` folders are
-  not counted).
+  phone-tagged.mp4 on 2026-11-22 for episode 34 (mp4kit tag ep34), phone.ts on 2026-11-23 for episode 36 (mp4kit tag
+  ep36).
+- **Total size:** the 21 files plus their captures hold 2,849,161 bytes (about 2.72 MiB; 2,636,550 for the first 20,
+  2,451,700 for the first 19, 2,375,128 for the first 18, 2,198,688 for the first 17, 2,008,381 for the first 16). On
+  disk, `du -k` reports 2,952 KB: out/ 1,732 and the 66 capture files 1,220, rounded up to 4 KB blocks (measured
+  2026-11-23; the per-episode `captures/epNN/` folders are not counted).
 - **Streams** (`streams/`, added 2026-11-21 for episode 29, not counted above): `phone.h264` (84,427 B, Annex B:
   65 NAL units, SPS and PPS before each of the 2 IDR samples) and `phone.aac` (25,012 B, ADTS: 95 frames, 24,347 B of
   AAC + 95 × 7-byte headers), phone.mp4's two streams copied out by make.sh with `ffmpeg -i phone.mp4 -map 0:v:0
@@ -59,6 +60,7 @@ Offsets are byte offsets from the start of the file. Sample counts are ffprobe p
 | `cenc.mp4` | Common Encryption (cenc, AES-CTR) on both tracks: encv/enca with sinf (frma, schm, schi/tenc), plus senc, saiz and saio. | 35 | 114,208 | mdat 40 (108,704); moov 108,744 (5,464). 60 + 95 samples, the same sizes as phone.mp4. mvhd timescale 48,000, duration 96,000. No pssh box: ffmpeg writes none. | phone.mp4 `-c copy -movie_timescale 48000 -encryption_scheme cenc-aes-ctr -encryption_key … -encryption_kid …` |
 | `broken-nomoov.mp4` | A recording that stopped before its moov was written. ffprobe says "moov atom not found". | 9, 19, 36 | 108,744 | ftyp 0 (32); free 32 (8); mdat 40 (108,704). The file ends at 108,744, where phone.mp4's moov starts. | `head -c $(python3 patch_stco.py --mdat-end phone.mp4) phone.mp4` |
 | `broken-stco.mp4` | phone.mp4 with one wrong chunk offset. The video track's stco entry 1 changes from 48 to 1,048, so the decoder reads the wrong bytes. | 36 | 112,156 | stco box at 110,062. Entry 1 is at byte 110,078 and changes from 48 to 1,048. Everything else is byte-identical to phone.mp4. | `python3 patch_stco.py phone.mp4 broken-stco.mp4 1000` |
+| `phone.ts` | phone.mp4's two streams (stream copy) in MPEG-TS, the container next door: fixed 188-byte packets, each starting with the sync byte 0x47 and a 13-bit PID that names its stream; the tables (PAT, PMT, SDT) travel inside the stream. No boxes and no moov: nothing to lose at the end. | 36 | 127,652 | 679 packets × 188 B. In file order: SDT (PID 0x0011) at 0, PAT (0x0000) at 188, PMT (0x1000) at 376, then video from 564. Packets per PID: 0x0000 PAT 20, 0x1000 PMT 20, 0x0011 SDT 4, 0x0100 video 496 (60 start a PES, one per picture; 80 carry an adaptation field), 0x0101 audio 139 (9 start a PES: the muxer packs several AAC frames into one). ffprobe: format mpegts, start_time 1.445333, duration 2.021334; h264 (stream_type 0x1b) and aac (0x0f), 60 + 95 packets in 90 kHz ticks (the first video packet pts 132,000, dts 126,000, at pos 564). Video packets are phone.mp4's + 6 B (an access unit delimiter `00 00 00 01 09 f0`), + 45 B at the 2 keyframes (AUD and SPS + PPS with start codes; Annex B start codes replace the 4-byte lengths at the same size): 84,787 B against 84,349. Audio + 7 B each (an ADTS header): 25,012 B against 24,347, = streams/phone.aac. Its trace capture is empty (no boxes) and walk.py does not parse it (`bad box size 1195381008`: `47 40 11 10` read as a size). Earlier episodes' tests glob only `*.mp4`/`*.m4a` or skip it. | phone.mp4 `-map 0 -c copy -f mpegts`, with make.sh's remux flags (make_scratch.sh's phone.ts); the mpegts muxer writes no date or version, so two builds are byte-identical with or without them |
 | `phone-large.mp4` | phone.mp4 with the three odd headers: a 64-bit largesize mdat header, co64 chunk offsets and a top-level uuid box. Every sample stays at its phone.mp4 byte offset. | 7, 15 | 112,656 | ftyp 0 (32); mdat 32 (108,712, a 16-byte header: `00 00 00 01 'mdat' 00 00 00 00 00 01 a8 a8`, size field 1 then the 64-bit size); moov 108,744 (3,884, was 3,412); uuid 112,628 (28). The mdat payload still starts at 48, where phone.mp4's did. Video co64 at 110,062, audio co64 at 112,025: each 488 B (59 entries of 8 bytes, against stco's 252 B), with phone's stco entries unchanged; each trak and its mdia, minf and stbl grow by 236 B. uuid usertype `edbe1d30-2808-58d2-8936-9db056c90de8` (uuid5 of the URL namespace and `https://shadowbrains.com/mp4-from-scratch/phone-large.mp4`), payload the 4 ASCII bytes `MP4S`. ffprobe's packet list (pos, size, pts, dts) is identical to phone.mp4's. In the trace capture ffprobe prints the mdat as `sz: 108704`: for a largesize box it reports the size minus 8. | `python3 patch_stco.py --large phone.mp4 phone-large.mp4` |
 
 ## Notes on the recipes
@@ -92,4 +94,5 @@ walk.py is the moov kit's one-video-track teaching parser. Building it out is wh
 | frag-cmaf.mp4 | **does not parse** | `ValueError: moof at 1242: one traf with one trun expected`. Each CMAF moof here carries two trafs, one per track. |
 | phone-sidx.mp4 | **does not parse** | `ValueError: moof at 1370: one traf with one trun expected`. Each moof carries two trafs, one per track, as in frag-cmaf. |
 | phone-large.mp4 | **does not parse** | `ValueError: bad box size 1 for 'mdat' at 32`. walk.py does not read a 64-bit largesize (size field 1); it would also need co64 in place of stco. Episode 7 teaches both. |
+| phone.ts | **does not parse** | `ValueError: bad box size 1195381008 for '\x00Bð%' at 0`. MPEG-TS has no boxes: the first four bytes are a sync byte and a PID, not a size. |
 | broken-nomoov.mp4 | **does not parse** | `KeyError: 'mdhd'`. There is no moov, so it has no tables. This is the case a course parser must report clearly. |

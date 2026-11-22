@@ -976,6 +976,19 @@ def _compare_runs(data, clear, track, twin, log):
     return runs[False], runs[True]
 
 
+def cmd_check(args):
+    """`check FILE`: the House inspector (episode 36). Every problem check.problems finds, each with its symptom and
+    its cause, then the count. Exit 1 if any is an error (a player reads wrong bytes or none), 0 for warnings and
+    notes only."""
+    from . import boxes, check
+    found = check.problems(boxes.read_mp4(args.file))
+    for message in found:
+        print(message)
+    errors, warnings = (sum(m.startswith(level) for m in found) for level in ("error", "warning"))
+    print(f"{errors} error{'s' * (errors != 1)}, {warnings} warning{'s' * (warnings != 1)}")
+    return 1 if errors else 0
+
+
 def _show(value):
     """A field as dump prints it: bytes as hex digits (in a list too), anything else as Python prints it."""
     if isinstance(value, list):
@@ -1133,6 +1146,13 @@ def _add_cenc_check(sub):
     c.set_defaults(func=cmd_cenc_check)
 
 
+def _add_check(sub):
+    """Register the `check` command."""
+    c = sub.add_parser("check", help="find what is wrong with a file: each problem with its symptom and cause")
+    c.add_argument("file")
+    c.set_defaults(func=cmd_check)
+
+
 def _add_packets(sub):
     """Register the `packets` command."""
     c = sub.add_parser("packets", help="list every packet in the order a player decodes them")
@@ -1146,7 +1166,7 @@ def main(argv: Optional[list] = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes, _add_dump, _add_samples,
                 _add_frame, _add_extract, _add_chunks, _add_packets, _add_faststart, _add_mux, _add_frag,
-                _add_cenc_check):
+                _add_cenc_check, _add_check):
         add(sub)
     args = p.parse_args(argv)
     return args.func(args)

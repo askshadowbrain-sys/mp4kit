@@ -92,7 +92,7 @@ class Ep23(unittest.TestCase):
         tkhd = tables.read_tkhd(CHAPTERS, boxes.find_all(boxes.walk(CHAPTERS), "moov/trak/tkhd")[2])
         self.assertEqual(tkhd["flags"], 2)                    # in movie, not enabled: players do not draw it
         for f in OUT.iterdir():
-            if f.name != "phone-chapters.mp4":
+            if f.name != "phone-chapters.mp4" and f.suffix != ".ts":      # phone.ts (episode 36): MPEG-TS, no boxes
                 with self.subTest(f=f.name):
                     self.assertTrue(all(t.tref == {} for t in tracks(f.read_bytes())))
 

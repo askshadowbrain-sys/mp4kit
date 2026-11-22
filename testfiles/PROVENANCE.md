@@ -26,3 +26,9 @@ The files are synthetic (testsrc2 and a sine). `make.sh` stays in the NEW-B1 ser
   -metadata artist="MP4 from Scratch" -movie_timescale 48000`, with make.sh's remux flags: +bitexact, so no `©too`).
   Two builds are byte-identical, and the other 19 files and their captures rebuild byte-identically with it. The
   MANIFEST copy also gives hdr.mp4's sample-entry offsets (colr, clli, mdcv).
+- phone.ts (`out/`, its three `captures/` files and the new MANIFEST.md) copied on 2026-11-23 from NEW-B1's make.sh,
+  which now carries make_scratch.sh's phone.ts recipe (phone.mp4 `-map 0 -c copy -f mpegts`, with make.sh's remux flags:
+  the mpegts muxer writes no date or version, so it is byte-identical with or without them). 127,652 B = 679 packets of
+  188 B. Two builds are byte-identical, and the other 20 files and their captures rebuild byte-identically with it.
+  It is the first test file that is not an MP4: test_ep23, test_ep26, test_ep28 and test_ep31, which read every file in
+  `out/`, now skip it.

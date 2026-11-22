@@ -1,0 +1,10 @@
+error: track 1 chunk 1 (bytes 1048 to 9010) overlaps track 2 chunk 1 at 8011, track 1 chunk 2 at 8249
+  symptom: a decoder is handed another chunk's bytes as this track's samples
+  cause: a chunk offset (stco or co64) is wrong: two chunks cannot hold the same bytes
+warning: mdat bytes 48 to 1047 (1000 bytes) belong to no sample
+  symptom: none: nothing reads them
+  cause: padding, or the bytes a wrong chunk offset should point to
+error: track 1: a NAL length that does not fit in 2 of 60 samples; the first, sample 1 (5824 bytes at 1048): length 632640939 at byte 0, 5820 bytes left
+  symptom: the decoder says: Invalid NAL unit size (632640939 > 5820), and drops the picture
+  cause: the sample is read from the wrong bytes (its chunk offset is wrong), or its bytes are damaged
+2 errors, 1 warning

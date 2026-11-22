@@ -47,6 +47,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep33 | boxes.py +2/-2, cli.py +69/-4, nal.py +49/-1, tables.py +54/-1 | 113 | ~38 | `cli.cmd_nals` 14 (17), `nal.iter_obus` 12 (16), `cli._sample_units` 12 (15), `cli._nal_lines` 10 (13), `cli._unit_lines` 9 (13), `tables._hvcc_profile` 8 (11), `tables.read_hvcc` 8 (13), `tables.read_av1c` 8 (13), `nal.leb128` 7 (10), `cli._add_nals` 7 (9), `cli._pick` 6 (8), `nal.hevc_nal_header` 3 (6), `tables._hvcc_fields` 2 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
 | ep34 | tables.py +57/-1 | 34 | ~13 | `tables.read_colr` 12 (16), `tables.read_ilst` 8 (12), `tables.read_mdcv` 5 (9), `tables.read_clli` 4 (7); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
 | ep35 | cli.py +86/-1, tables.py +112/-2 | 129 | ~42 | `tables.read_senc` 13 (17), `cli._check_locks` 12 (16), `tables.read_tenc` 11 (16), `cli.cmd_cenc_check` 11 (16), `tables.read_sinf` 10 (14), `cli._check_files` 9 (12), `tables.read_pssh` 8 (11), `cli._print_lock` 8 (11), `cli._compare_runs` 8 (11), `tables.clear_ranges` 7 (12), `tables.read_saiz` 4 (7), `tables.read_saio` 3 (6), `tables._aux_type` 1 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
+| ep36 | check.py +230/-0 (new), cli.py +21/-1 | 171 | ~44 | `check._track_clocks` 14 (18), `check.nal_lengths` 14 (17), `check.problems` 13 (17), `check.outside_mdat` 12 (14), `check.durations` 11 (15), `check.overlapping_chunks` 10 (12), `check._cut_short` 10 (13), `check._gaps` 9 (11), `check._overrun` 8 (11), `cli.cmd_check` 7 (11), `check.no_moov` 5 (7), `check._chunks` 5 (8), `check._unclaimed` 5 (8), `check._clock` 5 (7), `check._fragments` 5 (7), `check.ts_packets` 4 (6), `check._ts_note` 4 (6), `cli._add_check` 3 (5), `check._problem` 1 (3), `check._close` 1 (3); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
 
 ## Functions over 15 lines
 
@@ -901,4 +902,34 @@ arithmetic became `picture_size`, so its body is 12 lines.
   - **On-screen trim:** show `read_saiz`, `read_saio`, `read_pssh`, `_aux_type`, `_check_files`, `_print_lock`,
     `_add_cenc_check` and the DECODERS lines as finished code; type `read_sinf`, `read_tenc`'s version-0 path,
     `read_senc`, `clear_ranges`, `cmd_cenc_check`, `_check_locks` and `_compare_runs` (about 75 lines).
+- **ep36 (171, plan ~44; a finale's ceiling ~90).** The plan's six come to 66 code lines with their `def` lines
+  (`check.problems` 14, `no_moov` 6, `overlapping_chunks` 11, `nal_lengths` 15, `durations` 12, `cli.cmd_check` 8). The
+  rest: the brief's other rules, chunks outside mdat or past the file's end (`outside_mdat` 13) and mdat bytes no chunk
+  claims (`_unclaimed` 6, `_gaps` 10: broken-stco's moved offset leaves a 1,000-byte hole at 48); MPEG-TS, said and
+  shown rather than walked (`ts_packets` 5, `_ts_note` 5); a file cut inside a box (`_cut_short` 11: a recording cut
+  inside mdat, which broken-nomoov.mp4 is not, raises BoxError from `walk`); the clocks one track at a time
+  (`_track_clocks` 15, `_close` 2, `_clock` 6: B-frames make phone's video edit end at 31,744, past mdhd's 30,720, so an
+  edit is held against the last picture's end, not the media's); the shared pieces (`_chunks` 6, `_overrun` 9,
+  `_problem` 2, `_fragments` 6); imports and `TS_PACKET` 4; `_add_check` 4 and `main`'s tuple 1. Signatures as the
+  plan's, plus `outside_mdat(tracks, tree, size)` and `ts_packets(data)`. Every message is three lines: the finding
+  (`error`, `warning` or `note`), `symptom:` and `cause:`. Errors: no moov, a box past the file's end, overlapping
+  chunks, a chunk outside mdat or the file, a NAL length that does not fit (ffmpeg reads wrong bytes or none).
+  Warnings: unclaimed mdat bytes and clocks that disagree (ffmpeg plays on: it ignores tkhd's and mvhd's durations and
+  takes the shortest of mdhd, Σstts and the edits). Notes: MPEG-TS, fragments (trun is not read). Exit 1 on any error.
+  - **The numbers:** `check broken-stco.mp4`: 2 errors, 1 warning, expected/ep36.txt, 10 lines. Video chunk 1 (bytes
+    1,048 to 9,010 = 1,048 + 5,824 + 2,139 − 1) overlaps sound chunk 1 at 8,011 and video chunk 2 at 8,249 (the plan
+    names only the first); mdat bytes 48 to 1,047 (1,000) belong to no sample; video samples 1 and 2 of 60 have a NAL
+    length that does not fit: sample 1's first 4 bytes `25 b5 55 ab` = 632,640,939 against 5,820 left, sample 2's
+    3,023,811,340 against 2,135, which ffmpeg prints signed: `Invalid NAL unit size (632640939 > 5820)` and
+    `(-1271155956 > 2135)`, both in captures/broken-stco.mp4.probe.err.txt. broken-nomoov.mp4: 1 error, "no moov box:
+    the file ends at 108744, right after mdat at 40 (108704 bytes)", symptom `moov atom not found`. phone.ts: a note,
+    679 packets of 188 B, exit 0. The other 18 files: nothing but a note for frag-cmaf and phone-sidx.
+  - **Not done here:** fragments (trun offsets and sizes against their mdat), co64 and stco side by side, a sample
+    entry or data reference that points into another file (dref url), AV1 OBU sizes and VP9 superframes against the
+    sample, ctts or stss that disagree with the pictures (the inspector reads what the boxes say, not the slices),
+    sample sizes against the bytes the decoder actually consumes, and anything inside an MPEG-TS stream.
+  - **Blocks the Build-it scene shows:** the plan's six and `outside_mdat`.
+  - **On-screen trim:** show `_cut_short`, `ts_packets`, `_ts_note`, `_gaps`, `_unclaimed`, `_close`, `_clock`,
+    `_fragments` and `_add_check` as finished code; type `problems`, `no_moov`, `_chunks`, `overlapping_chunks`,
+    `outside_mdat`, `nal_lengths`, `_overrun`, `durations`, `_track_clocks` and `cmd_check` (about 110 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

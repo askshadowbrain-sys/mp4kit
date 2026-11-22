@@ -43,6 +43,7 @@ cmd_for() {
     ep33) echo 'python3 -m mp4kit nals testfiles/out/hevc-hev1.mp4 --sample 1' ;;
     ep34) echo 'python3 -m mp4kit dump testfiles/out/hdr.mp4 --find mdcv' ;;
     ep35) echo 'python3 -m mp4kit cenc-check testfiles/out/cenc.mp4 testfiles/out/phone.mp4' ;;
+    ep36) echo 'python3 -m mp4kit check testfiles/out/broken-stco.mp4; [ $? = 1 ]' ;;
     *) return 1 ;;
   esac
 }

@@ -85,7 +85,8 @@ class Ep31(unittest.TestCase):
             self.assertEqual(frag.read_mfro(contents, boxes.find(mfra.children, "mfro")), 148)
             self.assertEqual(boxes.u32(contents, len(contents) - 4), 148)
             self.assertEqual([b.type for b in mfra.children], ["tfra", "tfra", "mfro"])
-        for name in sorted(p.name for p in OUT.iterdir() if p.name not in ("frag-cmaf.mp4", "phone-sidx.mp4")):
+        skip = ("frag-cmaf.mp4", "phone-sidx.mp4", "phone.ts")            # phone.ts (episode 36): MPEG-TS
+        for name in sorted(p.name for p in OUT.iterdir() if p.name not in skip):
             with self.subTest(name):
                 self.assertIsNone(frag.back_gate(data(name)))       # phone-fast and broken-nomoov end in 896: no mfra
         self.assertIsNone(frag.back_gate(b""))

@@ -6,7 +6,7 @@ from tests.util import data, run_cli, run_cli_code
 
 OUT = Path(__file__).parents[1] / "testfiles" / "out"
 EXPECTED = Path(__file__).parents[1] / "expected" / "ep28.txt"
-FILES = sorted(p.name for p in OUT.iterdir() if p.name != "broken-nomoov.mp4")
+FILES = sorted(p.name for p in OUT.iterdir() if p.name not in ("broken-nomoov.mp4", "phone.ts"))   # phone.ts: MPEG-TS
 # The boxes the check finds different, and why: rotated's video tkhd has a turned matrix (write_tkhd writes the
 # identity), phone-chapters' chapter track is in the movie but not enabled (tkhd flags 2, write_tkhd writes 3), and
 # every libx264 avc1 carries the name "Lavc libx264" with pasp and btrt (write_avc1 writes none of them).
