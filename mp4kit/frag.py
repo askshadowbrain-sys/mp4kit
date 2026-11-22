@@ -5,12 +5,14 @@ offsets count from), and trun (the run itself: a table with a column for each fi
 the traf's first sample is decoded. Episode 31: every sample of every track, moof by moof (fragment_samples), and
 the two indexes that find a fragment by time without reading the file through: the block directory (sidx, before
 the fragments: each one's byte range and duration) and the back-gate index (mfra at the end, found from its last 4
-bytes (mfro): each random access point's time and moof, per track in a tfra)."""
+bytes (mfro): each random access point's time and moof, per track in a tfra). Episode 32: the delivery round. A
+file of our own made of pieces: the init (write_init: the nameplate and a map room with no parcels), then one piece
+per video keyframe (write_fragment), and the list a player fetches them by (hls_playlist: byte ranges in one file)."""
 import bisect
 import dataclasses
 import struct
 
-from . import boxes
+from . import audio, boxes, mux, tables
 from .tables import Sample
 
 DEFAULTS = ("sample_description_index", "default_sample_duration", "default_sample_size", "default_sample_flags")
@@ -20,6 +22,7 @@ TRUN_COLUMNS = ((0x100, "sample_duration"), (0x200, "sample_size"), (0x400, "sam
                 (0x800, "sample_composition_time_offset"))
 NON_SYNC = 0x00010000                    # sample_is_non_sync_sample, bit 16 of the sample flags
 DEFAULT_BASE_IS_MOOF = 0x020000
+KEY_FLAGS, OTHER_FLAGS = 0x02000000, 0x01010000   # depends on no other sample; depends on others and not sync
 
 
 def read_trex(data, box):
@@ -166,6 +169,88 @@ def fragment_at(index, t):
     """The row of an index (rows sorted by start time, first) whose start is the last at or before time `t`; the
     first row for a `t` before it (mov.c search_frag_timestamp and mov_seek_fragment do the same)."""
     return index[max(bisect.bisect_right([row[0] for row in index], t) - 1, 0)]
+
+
+def write_init(tracks, trays):
+    """The init (HLS's Media Initialization Section, RFC 8216 section 3.3): ftyp with brand iso6 or higher, then a moov
+    whose traks keep each track's sheet (`trays`: its stsd box, as it is) and entrance timer but list no samples and
+    last 0 ticks (mvhd, tkhd, mdhd, and the edit's segment_duration), then mvex: one trex per track, sample
+    description 1 and every other default 0, as ffmpeg writes them. Our truns carry every field themselves."""
+    movie = max(t.timescale for t in tracks)
+    traks = [mux.write_trak(dataclasses.replace(t, samples=[], duration=0, elst=[(0, audio.priming(t.elst), 1, 0)]),
+                            tray, [], [], movie) for t, tray in zip(tracks, trays)]
+    trex = [boxes.full_box("trex", 0, 0, struct.pack(">5I", t.id, 1, 0, 0, 0)) for t in tracks]
+    moov = boxes.box("moov", mux.write_mvhd(movie, 0, max(t.id for t in tracks) + 1), *traks, boxes.box("mvex", *trex))
+    return mux.write_ftyp("iso5", 512, ["iso5", "iso6", "mp41"]) + moov
+
+
+def write_traf(track, samples, data_offset):
+    """One corridor's share of a piece: tfhd (track_ID, default-base-is-moof, no defaults), tfdt (the first sample's
+    dts, version 1) and one trun with every column: duration (to the next sample's dts; the last to the track's
+    end), size, flags (keyframe or not) and composition offset (version 1 if one is negative)."""
+    ends = [s.dts for s in track.samples[1:]] + [track.duration]
+    rows = [(ends[s.number - 1] - s.dts, s.size, KEY_FLAGS if s.key else OTHER_FLAGS, s.cts - s.dts) for s in samples]
+    version = int(min(r[3] for r in rows) < 0)
+    trun = boxes.full_box("trun", version, 0x000F01, struct.pack(">Ii", len(rows), data_offset),
+                          *(struct.pack(">IIIi", *r) for r in rows))
+    return boxes.box("traf", boxes.full_box("tfhd", 0, DEFAULT_BASE_IS_MOOF, struct.pack(">I", track.id)),
+                     boxes.full_box("tfdt", 1, 0, struct.pack(">Q", samples[0].dts)), trun)
+
+
+def write_fragment(sequence, parts):
+    """One piece: a moof (mfhd's sequence_number, then a traf per (track, samples) in `parts`) and the mdat with their
+    bytes (each track's payloads), in that order. Each trun's data_offset counts from the moof's first byte to its
+    first sample, so the moof is built twice: once to learn its size."""
+    def moof(at):
+        trafs = []
+        for track, samples in parts:
+            trafs.append(write_traf(track, samples, at))
+            at = at + sum(s.size for s in samples)
+        return boxes.box("moof", boxes.full_box("mfhd", 0, 0, struct.pack(">I", sequence)), *trafs)
+    return moof(len(moof(0)) + 8) + boxes.box("mdat", *(t.payloads[s.number - 1] for t, run in parts for s in run))
+
+
+def cut(tracks):
+    """The pieces: one per video keyframe, each a list of (track, samples) holding every track's samples whose decode
+    time on the movie's timeline (mux.timeline, the entrance timers applied) is before the next keyframe's. phone:
+    pictures 1-30 and 31-60; sound 1-45 (up to 0.917 s) and 46-95 (from 0.939 s, after the cut at 0.933 s)."""
+    video = next((t for t in tracks if t.handler == "vide"), None)
+    cuts = [x for x, s in zip(mux.timeline(video), video.samples) if s.key] if video else []
+    if not cuts:
+        raise ValueError("no video keyframe to start a piece at (no moov, no video, or samples already in moofs)")
+    pieces = [[] for _ in cuts]
+    for t in tracks:
+        for s, x in zip(t.samples, mux.timeline(t)):
+            piece = pieces[max(bisect.bisect_right(cuts, x) - 1, 0)]
+            if not piece or piece[-1][0] is not t:
+                piece.append((t, []))
+            piece[-1][1].append(s)
+    return pieces
+
+
+def fragment(data):
+    """A plain MP4 as a terrace: the init, then the pieces (cut), numbered from 1. Samples, times, bytes and sheets
+    are the file's own. ValueError: no video keyframe to cut at."""
+    tree = boxes.walk(data)
+    tracks = [dataclasses.replace(t, payloads=[data[s.offset:s.offset + s.size] for s in t.samples])
+              for t in tables.read_tracks(data, tree)]
+    pieces = cut(tracks)
+    trays = [data[b.start:b.end] for b in boxes.find_all(tree, "moov/trak/mdia/minf/stbl/stsd")]
+    return write_init(tracks, trays) + b"".join(write_fragment(n, p) for n, p in enumerate(pieces, 1))
+
+
+def hls_playlist(name, init, fragments):
+    """The delivery round's list, an HLS Media Playlist (RFC 8216): version 6 (EXT-X-MAP without I-frames-only, section
+    7), the target duration (the longest piece, rounded, 4.3.3.1), media sequence 0, VOD (it never changes), every
+    piece starting at a keyframe (EXT-X-INDEPENDENT-SEGMENTS), the init's bytes (EXT-X-MAP, 4.3.2.5), then each
+    piece's length (EXTINF, 4.3.2.1) and bytes (EXT-X-BYTERANGE length@offset, 4.3.2.2), all in the one file `name`.
+    `init` is (size, offset); `fragments` (size, offset, seconds) each."""
+    lines = ["#EXTM3U", "#EXT-X-VERSION:6", f"#EXT-X-TARGETDURATION:{max(int(s + 0.5) for *_, s in fragments)}",
+             "#EXT-X-MEDIA-SEQUENCE:0", "#EXT-X-PLAYLIST-TYPE:VOD", "#EXT-X-INDEPENDENT-SEGMENTS",
+             f'#EXT-X-MAP:URI="{name}",BYTERANGE="{init[0]}@{init[1]}"']
+    for size, offset, seconds in fragments:
+        lines += [f"#EXTINF:{seconds:.6f},", f"#EXT-X-BYTERANGE:{size}@{offset}", name]
+    return "\n".join(lines + ["#EXT-X-ENDLIST", ""])
 
 
 def in_hex(fields):

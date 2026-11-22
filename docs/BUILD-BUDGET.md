@@ -43,6 +43,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep29 | cli.py +48/-1, mux.py +130/-1, tables.py +4/-2 | 119 | ~73 | `mux.video_track` 14 (19), `mux.mux` 14 (18), `cli.cmd_mux` 12 (16), `cli._print_built` 12 (15), `mux.display_order` 8 (12), `mux.write_trak` 8 (11), `cli._add_mux` 8 (10), `mux.audio_track` 7 (11), `mux.write_stsd` 7 (9), `mux.write_esds` 4 (8), `mux.video_clock` 4 (7), `mux.descriptor` 2 (5), `mux.write_mp4a` 2 (5); `tables.Track` gains one field (`payloads`); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
 | ep30 | cli.py +42/-1, frag.py +100 (new) | 92 | ~34 | `frag.traf_samples` 13 (19), `cli._print_fragments` 12 (15), `frag.read_trun` 11 (15), `cli._traf_line` 7 (10), `frag.read_tfhd` 7 (10), `cli._source` 6 (8), `frag.read_trex` 2 (5), `frag.read_tfdt` 2 (5), `frag.in_hex` 2 (4), `frag.column` 1 (3); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
 | ep31 | cli.py +94/-17, frag.py +86/-1 | 116 | ~35 | `cli.cmd_samples` 15 (22), at the limit, `frag.read_sidx` 14 (19), `cli._print_lookup` 12 (15), `frag.read_tfra` 11 (15), `frag.fragment_samples` 10 (13), `frag.back_gate` 8 (11), `cli._source` 7 (10), `cli._track_samples` 6 (9), `cli._print_tfra` 6 (9), `cli._print_samples` 5 (7), `cli._print_sidx` 5 (8), `cli._from_runs` 4 (7), `frag.read_mfro` 1 (3), `frag.fragment_at` 1 (4), `cli._in_fragments` 1 (3); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
+| ep32 | cli.py +65/-1, frag.py +87/-2 | 99 | ~49 | `cli._print_terrace` 15 (20), at the limit, `cli.cmd_frag` 14 (19), `frag.cut` 12 (16), `frag.write_traf` 7 (11), `frag.write_fragment` 7 (11) (its inner `moof` 5 (6)), `cli._seconds` 7 (9), `frag.write_init` 6 (11), `frag.fragment` 6 (9), `frag.hls_playlist` 6 (12), `cli._add_frag` 5 (7); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
 
 ## Functions over 15 lines
 
@@ -757,4 +758,48 @@ arithmetic became `picture_size`, so its body is 12 lines.
   - **On-screen trim:** show the `samples` rearrangement, `_print_lookup`, `_print_sidx`, `_print_tfra`, the
     `DECODERS` lines and the `_source` fix as finished code; type the plan's four, `back_gate` and `fragment_at`
     (about 51 lines).
+- **ep32 (99, plan ~49).** The plan's five come to 44 code lines with their `def` lines (`frag.write_init` 7,
+  `write_fragment` 8, `fragment` 7, `hls_playlist` 7, `cli.cmd_frag` 15), inside the plan's ~49. The rest: `frag.cut`
+  13 (the pieces: one per video keyframe, each track's samples by decode time on the movie's timeline, `mux.timeline`;
+  split out of `fragment` to keep its body under 15), `frag.write_traf` 8 (one traf: tfhd, tfdt, trun), the flag
+  constants 1, an import line; in cli.py `_print_terrace` 16 (the terrace read back with episodes 30-31's readers; it
+  also gives the playlist's byte ranges), `_seconds` 8 (a piece's picture time from its video trun, else the tfhd's
+  default: so frag-cmaf.mp4's playlist can be made the same way), `_add_frag` 6, `import os` and `main`'s list (47).
+  Signatures: `write_init(tracks, trays)` takes each track's stsd box as well (plan: `write_init(tracks)`): phone's
+  sheets are copied as they are (avc1 with pasp and btrt, compressorname "Lavc libx264"; mp4a with btrt), which
+  `mux.write_stsd` does not rebuild (it drops pasp and btrt, and needs an int sample rate); `write_fragment(sequence,
+  parts)` as written, `parts` = [(Track, [Sample])], the bytes from `Track.payloads`; `fragment(data)` and
+  `hls_playlist(name, init, fragments)` as written; `cut(tracks)` and `write_traf(track, samples, data_offset)` are new.
+  - **The numbers:** phone.mp4 → frag.mp4, 112,749 B: ftyp 0 (28: iso5, 512, iso5 iso6 mp41), moov 28 (1,225: mvhd,
+    two traks with phone's sheets, elst (0, 1,024) each, empty tables, every duration 0; mvex 1,181 (72): trex track 1
+    and 2, description 1, the rest 0), moof 1,253 (1,352), mdat 2,605 (53,166), moof 55,771 (1,432), mdat 57,203
+    (55,546). Piece 1: pictures 1-30, sound 1-45; piece 2: pictures 31-60, sound 46-95 (the cut at picture 31's
+    (15,360 - 1,024) / 15,360 = 0.9333 s: sound 45 starts at 0.9173 s, 46 at 0.9387 s), as frag-cmaf.mp4's 30 + 45 /
+    30 + 50. tfhd flags 0x020000 (default-base-is-moof only), tfdt version 1 (0, 0, 15,360, 46,080), trun version 0,
+    flags 0x000f01 (data_offset, then duration, size, flags and composition offset for every sample: 16 bytes a row),
+    data_offset 1,360 / 42,997 and 1,440 / 44,152. Both mdat payloads are byte for byte frag-cmaf.mp4's. Playlist:
+    version 6, target 1, EXT-X-MAP 1,253@0, segments 54,518@1,253 and 56,978@55,771, 1.000000 s each. For
+    frag-cmaf.mp4 the same reader gives the plan's 1,242@0, 53,774@1,242 and 56,374@55,016 (its mfra is in no segment).
+  - **Our file against phone.mp4 (ffprobe):** every packet's pts, dts, duration and size equal phone's, on both tracks
+    (155), and every key flag; only sound packet 1 differs: phone marks it discard (`KD_`, mov.c's edit-list index
+    fix), ours does not (`K__`), but its skip_samples 1,024 (mov.c 4886-4888: AAC initial_padding from the edit's
+    media_time) drops the priming all the same. Decoded: every picture (framemd5) equal; sound 385,024 bytes against
+    384,000, the first 384,000 equal: the 256 extra samples are the last AAC frame's tail, which phone's edit cuts
+    (segment_duration 96,000) and ours, with segment_duration 0 (RFC 8216 wants zero durations), does not: episode
+    29's 256 again. Streams: sound duration 97,024 ticks (2.021333 s) against phone's 96,000; nb_frames N/A (no
+    tables in the moov). The playlist, read by ffmpeg's HLS reader with byte ranges, gives the same 155 packets.
+  - **Against frag-cmaf.mp4 (ffmpeg +cmaf):** ftyp iso5 / iso5 iso6 mp41 against iso6 / iso6 cmfc mp41 (we claim no
+    CMAF brand: ISO/IEC 23000-19 was not read, and we keep an edit list); moov 1,225 = frag-cmaf's 1,214 - 61 (udta,
+    an empty iTunes meta) + 72 (two edts): ffmpeg drops the edit lists when fragmenting and shifts the times instead
+    (video cto = phone's - 1,024 in trun version 1, sound priming no longer trimmed); we keep phone's times and the
+    edits, so ffprobe's pts are phone's. moofs 1,352 / 1,432 against 608 / 828: ffmpeg puts defaults in the tfhd
+    (0x02003a) and writes only the columns that vary; ours writes every column. No mfra (frag-cmaf: 148 B).
+  - **Not done here:** a display matrix (rotated.mp4's 90 degrees is lost: write_tkhd writes the identity), chapter
+    tracks (phone-chapters' chap track comes out as an ordinary text track), cenc (senc/saiz/saio are not carried:
+    cenc.mp4's pieces do not decode), an edit list that ends early (the last sound frame's tail), more than one
+    edit, files with no video track (aac-only.m4a is refused), pieces cut by time rather than by keyframe, separate
+    segment files (styp), sidx, mfra, I-frame playlists, a master playlist, DASH's MPD.
+  - **Blocks the Build-it scene shows:** the plan's five, `cut` and `write_traf`.
+  - **On-screen trim:** show the flag constants, `_print_terrace`, `_seconds` and `_add_frag` as finished code; type
+    the plan's five, `cut` and `write_traf` (about 65 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

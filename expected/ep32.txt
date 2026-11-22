@@ -1,0 +1,19 @@
+init: ftyp 0 28, moov 28 1225; mvex: trex for tracks [1, 2]
+piece 1: moof 1253 1352, mdat 2605 53166; track 1 samples 1-30 (dts 0, key); track 2 samples 1-45 (dts 0, key); 1.000000 s of pictures
+piece 2: moof 55771 1432, mdat 57203 55546; track 1 samples 31-60 (dts 15360, key); track 2 samples 46-95 (dts 46080, key); 1.000000 s of pictures
+wrote frag.mp4: 112749 bytes
+wrote frag.m3u8:
+#EXTM3U
+#EXT-X-VERSION:6
+#EXT-X-TARGETDURATION:1
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-PLAYLIST-TYPE:VOD
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-MAP:URI="frag.mp4",BYTERANGE="1253@0"
+#EXTINF:1.000000,
+#EXT-X-BYTERANGE:54518@1253
+frag.mp4
+#EXTINF:1.000000,
+#EXT-X-BYTERANGE:56978@55771
+frag.mp4
+#EXT-X-ENDLIST

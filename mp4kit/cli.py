@@ -1,5 +1,6 @@
 """The mp4kit command line: one cmd_* per subcommand."""
 import argparse
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -782,6 +783,60 @@ def _print_built(data):
     print("boxes: " + ", ".join(f"{b.type} {b.start} {b.size}" for b in tree))
 
 
+def cmd_frag(args):
+    """`frag FILE -o OUT [--hls PLAYLIST]`: the delivery round. FILE as a terrace of our own (frag.fragment): the init,
+    then a piece per video keyframe. The terrace is read back with episode 30-31's readers (_print_terrace), then
+    written; `--hls` also writes the playlist that lists its byte ranges (frag.hls_playlist) and prints it. The
+    playlist names OUT relative to itself. ffmpeg is the judge: `ffmpeg -v error -i OUT -f null -` prints nothing."""
+    from . import boxes, frag
+    try:
+        data = frag.fragment(boxes.read_mp4(args.file))
+    except ValueError as e:
+        print(f"error: {e}")
+        return 1
+    init, pieces = _print_terrace(data)
+    Path(args.out).write_bytes(data)
+    print(f"wrote {Path(args.out).name}: {len(data)} bytes")
+    if args.hls:
+        text = frag.hls_playlist(os.path.relpath(args.out, Path(args.hls).parent), init, pieces)
+        Path(args.hls).write_text(text)
+        print(f"wrote {Path(args.hls).name}:\n{text}", end="")
+    return 0
+
+
+def _print_terrace(data):
+    """The terrace as mp4kit reads it back: the init's boxes, then each piece (moof and mdat: start, size) with each
+    track's samples in it (frag.fragment_samples: first to last, the first one's dts and whether it is a keyframe)
+    and the length of its pictures (_seconds). Gives the playlist's byte ranges: the init's (size, 0) and each
+    piece's (size, offset, seconds)."""
+    from . import boxes, frag, tables
+    tree = boxes.walk(data)
+    tracks, first = frag.fragment_samples(data, tree), next(i for i, b in enumerate(tree) if b.type == "moof")
+    video = next(t for t in tables.read_tracks(data, tree) if t.handler == "vide")
+    ids = [frag.read_trex(data, b)["track_ID"] for b in boxes.find_all(tree, "moov/mvex/trex")]
+    print("init: " + ", ".join(f"{b.type} {b.start} {b.size}" for b in tree[:first]) + f"; mvex: trex for tracks {ids}")
+    pieces = []
+    for n, (moof, mdat) in enumerate(((b, tree[i + 1]) for i, b in enumerate(tree) if b.type == "moof"), 1):
+        runs = [(tid, [s for s in samples if s.chunk == n]) for tid, samples in tracks.items()]
+        seconds = _seconds(data, moof, video)
+        print(f"piece {n}: moof {moof.start} {moof.size}, mdat {mdat.start} {mdat.size}; " + "; ".join(
+            f"track {tid} samples {r[0].number}-{r[-1].number} (dts {r[0].dts}{', key' if r[0].key else ''})"
+            for tid, r in runs if r) + f"; {seconds:.6f} s of pictures")
+        pieces.append((mdat.end - moof.start, moof.start, seconds))
+    return (tree[first].start, 0), pieces
+
+
+def _seconds(data, moof, video):
+    """How long a piece's pictures last: the video traf's trun durations (else the tfhd's default) over its clock."""
+    from . import boxes, frag
+    traf = next(t for t in boxes.find_all(moof.children, "traf")
+                if frag.read_tfhd(data, boxes.find(t.children, "tfhd"))["track_ID"] == video.id)
+    tfhd = frag.read_tfhd(data, boxes.find(traf.children, "tfhd"))
+    trun = frag.read_trun(data, boxes.find(traf.children, "trun"))
+    durations = trun.get("sample_duration", [tfhd.get("default_sample_duration", 0)] * trun["sample_count"])
+    return sum(durations) / video.timescale
+
+
 def _show(value):
     """A field as dump prints it: bytes as hex digits (in a list too), anything else as Python prints it."""
     if isinstance(value, list):
@@ -920,6 +975,15 @@ def _add_mux(sub):
     m.set_defaults(func=cmd_mux)
 
 
+def _add_frag(sub):
+    """Register the `frag` command."""
+    f = sub.add_parser("frag", help="write a fragmented MP4: an init, then a moof + mdat per video keyframe")
+    f.add_argument("file", help="the MP4 file to read")
+    f.add_argument("-o", dest="out", required=True, help="the fragmented MP4 to write")
+    f.add_argument("--hls", metavar="PLAYLIST", help="also write an HLS playlist (.m3u8) of its byte ranges")
+    f.set_defaults(func=cmd_frag)
+
+
 def _add_packets(sub):
     """Register the `packets` command."""
     c = sub.add_parser("packets", help="list every packet in the order a player decodes them")
@@ -932,7 +996,7 @@ def main(argv: Optional[list] = None) -> int:
     p = argparse.ArgumentParser(prog="mp4kit")
     sub = p.add_subparsers(dest="cmd", required=True)
     for add in (_add_hex, _add_nals, _add_sps, _add_annexb, _add_boxes, _add_dump, _add_samples,
-                _add_frame, _add_extract, _add_chunks, _add_packets, _add_faststart, _add_mux):
+                _add_frame, _add_extract, _add_chunks, _add_packets, _add_faststart, _add_mux, _add_frag):
         add(sub)
     args = p.parse_args(argv)
     return args.func(args)

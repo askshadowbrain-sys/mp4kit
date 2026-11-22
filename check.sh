@@ -39,6 +39,7 @@ cmd_for() {
     ep29) echo 'python3 -m mp4kit mux --video testfiles/streams/phone.h264 --audio testfiles/streams/phone.aac --fps 30 --priming 1024 -o "$TMPOUT/out.mp4" && ffmpeg -v error -i "$TMPOUT/out.mp4" -f null -' ;;
     ep30) echo 'python3 -m mp4kit dump testfiles/out/frag-cmaf.mp4 --find trun' ;;
     ep31) echo 'python3 -m mp4kit samples testfiles/out/frag-cmaf.mp4' ;;
+    ep32) echo 'python3 -m mp4kit frag testfiles/out/phone.mp4 -o "$TMPOUT/frag.mp4" --hls "$TMPOUT/frag.m3u8" && ffmpeg -v error -i "$TMPOUT/frag.mp4" -f null - && ffmpeg -v error -i "$TMPOUT/frag.m3u8" -f null - && cmp "$TMPOUT/frag.m3u8" expected/ep32.m3u8' ;;
     *) return 1 ;;
   esac
 }
