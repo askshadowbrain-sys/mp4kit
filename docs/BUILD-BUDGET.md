@@ -45,6 +45,7 @@ What each episode's Build it adds to `mp4kit/`, and the longest function at that
 | ep31 | cli.py +94/-17, frag.py +86/-1 | 116 | ~35 | `cli.cmd_samples` 15 (22), at the limit, `frag.read_sidx` 14 (19), `cli._print_lookup` 12 (15), `frag.read_tfra` 11 (15), `frag.fragment_samples` 10 (13), `frag.back_gate` 8 (11), `cli._source` 7 (10), `cli._track_samples` 6 (9), `cli._print_tfra` 6 (9), `cli._print_samples` 5 (7), `cli._print_sidx` 5 (8), `cli._from_runs` 4 (7), `frag.read_mfro` 1 (3), `frag.fragment_at` 1 (4), `cli._in_fragments` 1 (3); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart` and `cli._rewrite_track_headers` 15 overall |
 | ep32 | cli.py +65/-1, frag.py +87/-2 | 99 | ~49 | `cli._print_terrace` 15 (20), at the limit, `cli.cmd_frag` 14 (19), `frag.cut` 12 (16), `frag.write_traf` 7 (11), `frag.write_fragment` 7 (11) (its inner `moof` 5 (6)), `cli._seconds` 7 (9), `frag.write_init` 6 (11), `frag.fragment` 6 (9), `frag.hls_playlist` 6 (12), `cli._add_frag` 5 (7); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
 | ep33 | boxes.py +2/-2, cli.py +69/-4, nal.py +49/-1, tables.py +54/-1 | 113 | ~38 | `cli.cmd_nals` 14 (17), `nal.iter_obus` 12 (16), `cli._sample_units` 12 (15), `cli._nal_lines` 10 (13), `cli._unit_lines` 9 (13), `tables._hvcc_profile` 8 (11), `tables.read_hvcc` 8 (13), `tables.read_av1c` 8 (13), `nal.leb128` 7 (10), `cli._add_nals` 7 (9), `cli._pick` 6 (8), `nal.hevc_nal_header` 3 (6), `tables._hvcc_fields` 2 (4); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
+| ep34 | tables.py +57/-1 | 34 | ~13 | `tables.read_colr` 12 (16), `tables.read_ilst` 8 (12), `tables.read_mdcv` 5 (9), `tables.read_clli` 4 (7); `boxes.read_header`, `tables.read_mvhd`, `tables.sample_table`, `cli.cmd_frame`, `cli._frame_route`, `cli._sound_tracks`, `cli.cmd_chunks`, `cli.cmd_packets`, `cli.cmd_samples`, `cli.cmd_rewrite_check`, `mux.faststart`, `cli._rewrite_track_headers` and `cli._print_terrace` 15 overall |
 
 ## Functions over 15 lines
 
@@ -844,4 +845,26 @@ arithmetic became `picture_size`, so its body is 12 lines.
   - **Blocks the Build-it scene shows:** the plan's five and `_hvcc_profile`.
   - **On-screen trim:** show the name tables, `_hvcc_fields`, `_pick`, `_unit_lines`, `_nal_lines` and the argparse
     lines as finished code; type the plan's five, `_hvcc_profile` and `_sample_units` (about 65 lines).
+- **ep34 (34, plan ~13).** The plan's three come to 24 code lines with their `def` lines (`tables.read_colr` 13,
+  `read_mdcv` 6, `read_clli` 5): each checks its box is long enough and raises a `BoxError` with the sizes, as every
+  reader since ep10 does, and `read_colr` handles all four colour types (nclx with full_range_flag, QuickTime's nclc
+  without it, and prof/rICC, an ICC profile it only measures). The rest: `tables.read_ilst` 9, the visitors' book
+  (phone-tagged.mp4 is committed now, so the plan's "dump only" for metadata became one reader: each ilst item's
+  `data` box, type 1 as UTF-8 text, any other type as bytes), and the `DECODERS` line 1. No cli.py change: `dump`
+  and `--find` print the four through `boxes.DECODERS`. Signatures as the plan's: `read_colr(data, box)`,
+  `read_mdcv(data, box)`, `read_clli(data, box)`, each a dict; `read_ilst(data, box)` gives `{"tags": {key: value}}`.
+  mdcv keeps its fixed-point units (`display_primaries` in stored order, green, blue, red; `white_point`; the two
+  luminances): the arithmetic (/ 50,000, / 10,000) is the Build it's spoken step, not code.
+  - **The numbers:** hdr.mp4's hvc1 at 28,076 holds hvcC, fiel, colr 30,785 (19), clli 30,804 (12), mdcv 30,816 (32),
+    pasp, btrt: clli before mdcv, ffmpeg's write order (movenc.c `mov_write_video_tag`). colr nclx 9 / 16 / 9 / 0 =
+    ffprobe bt2020 / smpte2084 / bt2020nc / tv. mdcv G (13,250, 34,500) B (7,500, 3,000) R (34,000, 16,000) WP
+    (15,635, 16,450), luminance 10,000,000 and 1 = (0.265, 0.69) (0.15, 0.06) (0.68, 0.32) (0.3127, 0.329), 1,000 and
+    0.0001 cd/m2: P3 primaries with a D65 white inside a BT.2020 signal; ffprobe's side data gives the same over
+    50,000 and 10,000 (named red, green, blue: mov.c `mov_read_mdcv` maps stored order {1, 2, 0}). clli 1,000 / 400 =
+    ffprobe max_content / max_average. No other test file has colr, mdcv or clli; phone.mp4's colour is "unknown" in
+    ffprobe on all four fields. phone-tagged.mp4's ilst (112,148, 84 B): ©nam "Test pattern", ©ART "MP4 from
+    Scratch" = ffprobe's format tags title and artist; phone.mp4's is the empty 8-byte ilst.
+  - **Blocks the Build-it scene shows:** the plan's three and `read_ilst`.
+  - **On-screen trim:** show `read_colr`'s nclc and ICC branches and the length checks as finished code; type the
+    nclx path, `read_mdcv`, `read_clli` and `read_ilst` (about 25 lines).
 - ep01–ep03 are 6–10 lines over their estimates.

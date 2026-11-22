@@ -21,3 +21,8 @@ The files are synthetic (testsrc2 and a sine). `make.sh` stays in the NEW-B1 ser
   e7958211, which adds make_scratch.sh's recipe to make.sh (1 s testsrc2 320x180 in libvpx-vp9 + a 48 kHz sine in
   libopus, +bitexact; libvpx 1.17.0, libopus 1.6.1). The other 18 files and their captures rebuild byte-identically with
   it. The MANIFEST copy also brings in NEW-B1's correction that hevc.mp4's keyframe sample 28 is a CRA (type 21).
+- phone-tagged.mp4 (`out/`, its three `captures/` files and the new MANIFEST.md) copied on 2026-11-22 from NEW-B1's
+  make.sh, which now carries make_scratch.sh's tagged.mp4 recipe (phone.mp4 `-c copy -metadata title="Test pattern"
+  -metadata artist="MP4 from Scratch" -movie_timescale 48000`, with make.sh's remux flags: +bitexact, so no `©too`).
+  Two builds are byte-identical, and the other 19 files and their captures rebuild byte-identically with it. The
+  MANIFEST copy also gives hdr.mp4's sample-entry offsets (colr, clli, mdcv).

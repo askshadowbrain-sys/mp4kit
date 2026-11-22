@@ -41,6 +41,7 @@ cmd_for() {
     ep31) echo 'python3 -m mp4kit samples testfiles/out/frag-cmaf.mp4' ;;
     ep32) echo 'python3 -m mp4kit frag testfiles/out/phone.mp4 -o "$TMPOUT/frag.mp4" --hls "$TMPOUT/frag.m3u8" && ffmpeg -v error -i "$TMPOUT/frag.mp4" -f null - && ffmpeg -v error -i "$TMPOUT/frag.m3u8" -f null - && cmp "$TMPOUT/frag.m3u8" expected/ep32.m3u8' ;;
     ep33) echo 'python3 -m mp4kit nals testfiles/out/hevc-hev1.mp4 --sample 1' ;;
+    ep34) echo 'python3 -m mp4kit dump testfiles/out/hdr.mp4 --find mdcv' ;;
     *) return 1 ;;
   esac
 }

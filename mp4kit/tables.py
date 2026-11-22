@@ -9,7 +9,8 @@ corridor's entrance (read_elst). Episode 21: the sound corridor's sheet, mp4a (r
 roll slip, a sample group: its entries (sgpd) and the runs of samples it covers (sbgp). Episode 23: many tracks, each
 corridor read whole (Track, read_tracks), and the signposts between corridors (read_tref). Episode 24: the
 basement aisle, every track's chunks in file order (Sample.chunk, chunk_list). Episode 29: Track.payloads. Episode 33:
-new sheets in the same tray, HEVC's hvcC (read_hvcc) and AV1's av1C (read_av1c)."""
+new sheets in the same tray, HEVC's hvcC (read_hvcc) and AV1's av1C (read_av1c). Episode 34: the paint chart pinned
+beside the sheet, colr, mdcv and clli (read_colr, read_mdcv, read_clli), and the visitors' book (read_ilst)."""
 import struct
 from dataclasses import dataclass, field
 
@@ -243,6 +244,61 @@ def read_av1c(data, box):
 
 
 boxes.DECODERS["hvcC"], boxes.DECODERS["av1C"] = _hvcc_fields, read_av1c
+
+
+def read_colr(data, box):
+    """The paint chart (colr, ISO 14496-12 12.1.5): colour_type, then for nclx the three code points of ITU-T H.273,
+    colour_primaries, transfer_characteristics and matrix_coefficients (16 bits each), and full_range_flag, the top bit
+    of the last byte. QuickTime's nclc has the three without the flag; prof and rICC carry an ICC profile instead."""
+    colour_type = data[box.payload:box.payload + 4].decode("latin-1")
+    if colour_type not in ("nclx", "nclc"):
+        return {"colour_type": colour_type, "ICC_profile_size": box.end - box.payload - 4}
+    need = 19 if colour_type == "nclx" else 18
+    if box.size < need:
+        raise boxes.BoxError(f"colr at {box.start}: {colour_type} needs {need} bytes, box has {box.size}")
+    primaries, transfer, matrix = struct.unpack_from(">3H", data, box.payload + 4)
+    fields = {"colour_type": colour_type, "colour_primaries": primaries, "transfer_characteristics": transfer,
+              "matrix_coefficients": matrix}
+    if colour_type == "nclx":
+        fields["full_range_flag"] = data[box.payload + 10] >> 7
+    return fields
+
+
+def read_mdcv(data, box):
+    """The mastering display (mdcv): three display primaries as (x, y), stored green, blue, red (the order H.265 D.3.28
+    suggests and ffmpeg writes), and the white point, in steps of 0.00002 (x / 50,000); then the display's max and min
+    luminance in steps of 0.0001 cd/m2 (/ 10,000). A plain box: no version or flags."""
+    if box.size < 32:
+        raise boxes.BoxError(f"mdcv at {box.start}: needs 32 bytes, box has {box.size}")
+    v = struct.unpack_from(">8H2I", data, box.payload)
+    return {"display_primaries": [(v[0], v[1]), (v[2], v[3]), (v[4], v[5])], "white_point": (v[6], v[7]),
+            "max_display_mastering_luminance": v[8], "min_display_mastering_luminance": v[9]}
+
+
+def read_clli(data, box):
+    """The content's light levels (clli), in cd/m2: the brightest pixel in the whole video (MaxCLL) and the brightest
+    frame on average (MaxFALL). A plain box: no version or flags."""
+    if box.size < 12:
+        raise boxes.BoxError(f"clli at {box.start}: needs 12 bytes, box has {box.size}")
+    return {"max_content_light_level": boxes.u16(data, box.payload),
+            "max_pic_average_light_level": boxes.u16(data, box.payload + 2)}
+
+
+def read_ilst(data, box):
+    """The visitors' book (moov/udta/meta/ilst, Apple's iTunes-style list): one box per entry, named by its key (©nam
+    title, ©ART artist; the © is the byte 0xA9), each holding a data box: a type (1 is UTF-8 text), a locale, then the
+    value (here as text, or as bytes for any other type)."""
+    tags = {}
+    for item in boxes.iter_boxes(data, box.payload, box.end):
+        value = boxes.read_header(data, item.payload, item.end)
+        if value.type != "data":
+            raise boxes.BoxError(f"{item.type} at {item.start}: holds {value.type}, not a data box")
+        text = data[value.payload + 8:value.end]
+        tags[item.type] = text.decode("utf-8") if boxes.u32(data, value.payload) == 1 else bytes(text)
+    return {"tags": tags}
+
+
+boxes.DECODERS.update(colr=read_colr, mdcv=read_mdcv, clli=read_clli, ilst=read_ilst)
 
 
 def read_table(data, box, fmt):
